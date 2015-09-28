@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="ical4j-1.0.4/ical4j-1.0.4/lib/backport-util-concurrent-3.1.jar"/>
+	<classpathentry kind="lib" path="ical4j-1.0.4/ical4j-1.0.4/lib/commons-codec-1.5.jar"/>
+	<classpathentry kind="lib" path="ical4j-1.0.4/ical4j-1.0.4/lib/commons-lang-2.6.jar"/>
+	<classpathentry kind="lib" path="ical4j-1.0.4/ical4j-1.0.4/lib/commons-logging-1.1.1.jar"/>
+	<classpathentry kind="lib" path="ical4j-1.0.4/ical4j-1.0.4/lib/groovy-all-1.8.6.jar"/>
+	<classpathentry kind="lib" path="ical4j-1.0.4/ical4j-1.0.4/lib/ical4j-1.0.4.jar"/>
+	<classpathentry kind="lib" path="javamail-1.4.2/javamail-1.4.2/mail.jar"/>
+	<classpathentry kind="lib" path="comm3.0_u1_linux/commapi/jar/comm.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files (x86)/MySQL/MySQL Connector J/mysql-connector-java-5.1.29-bin.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

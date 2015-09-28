@@ -1,0 +1,13 @@
+*.zip
+*.sql
+*.log
+*.bmp
+bin
+javamail-1.4.2*/
+ical4j-1.0.4*/
+comm3.0_u1_linux*/
+weather.xml
+fred.xml
+ical4j.txt
+NewFile.html
+sql.txt

@@ -1,0 +1,39 @@
+<zones>
+	<zone>
+		<name>z1</name>
+		<controller>h2</controller>
+		<description>Sanctuary</description>
+		<type>Zone</type>
+		<locations>Sanctuary.*</locations>
+		<defaultTemp>19</defaultTemp>
+	</zone>
+	<zone>
+		<name>z2</name>
+		<description>Hall</description>
+		<controller>h3</controller>
+		<type>Zone</type>
+		<locations>Hall</locations>
+		<defaultTemp>19</defaultTemp>
+	</zone>
+	<zone>
+		<name>h1</name>
+		<cascades>
+			<cascade>
+				<name>c1</name>
+			</cascade>
+			<cascade>
+				<name>c2</name>
+			</cascade>
+			<cascade>
+				<name>main</name>
+			</cascade>
+		</cascades>
+		<description>Boiler Circuit</description>
+		<type>Controller</type>
+	</zone>
+	<zone>
+		<name>z3</name>
+		<description>Hall Vents</description>
+		<type>Vents</type>
+	</zone>
+</zones>
