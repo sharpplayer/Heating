@@ -259,11 +259,10 @@ public class LogLeadTimeCommand extends CommandImpl {
 												addData(system, dataSet, zone,
 														state, first, ld);
 											}
-											if (period.size() > 0) {
-												while (ld.timestamp
-														- period.get(0).timestamp > ONE_HOUR) {
-													period.remove(0);
-												}
+											while ((period.size() > 0)
+													&& ld.timestamp
+															- period.get(0).timestamp > ONE_HOUR) {
+												period.remove(0);
 											}
 										}
 									}
@@ -321,8 +320,7 @@ public class LogLeadTimeCommand extends CommandImpl {
 			int interpTemp = (int) (Math
 					.round(10 * ((ld.startInTemp - ld.prev.startInTemp)
 							* (double) (interpolatedTime - ld.prev.timestamp)
-							/ (double) (ld.timestamp - ld.prev.timestamp)
-							+ ld.prev.startInTemp)));
+							/ (double) (ld.timestamp - ld.prev.timestamp) + ld.prev.startInTemp)));
 			int deltaIn = interpTemp - it;
 			String sql = "SELECT Count FROM tblleadtimes WHERE DataGroupId = "
 					+ dataSet + " AND Zone='" + zone + "' AND State=" + state

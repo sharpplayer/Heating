@@ -242,8 +242,8 @@ public class ZimbraCommand extends CommandImpl {
 				String[] paramsUrl = new String[] { HeatingSystem.PARAM_ZIMBRA,
 						HeatingSystem.PARAM_ZIMBRA2 };
 				URLConnection uc = null;
-				Vector<VEvent> processedEvents = new Vector<>();
-				Vector<VEvent> allEvents = new Vector<>();
+				Vector<VEvent> processedEvents = new Vector<VEvent>();
+				Vector<VEvent> allEvents = new Vector<VEvent>();
 				HashMap<String, Vector<Required>> reqs = new HashMap<String, Vector<Required>>();
 
 				Calendar now = Calendar.getInstance();
