@@ -34,6 +34,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import uk.org.hrbc.commands.ActualRequiredTemperatureCommand;
+import uk.org.hrbc.commands.AggregatedLeadTimesCommand;
 import uk.org.hrbc.commands.AlertCommand;
 import uk.org.hrbc.commands.AlertsCommand;
 import uk.org.hrbc.commands.Command;
@@ -116,6 +117,7 @@ public class HeatingSystem {
 	public final static String PARAM_ACTIVE_DATASET = "ADATASET";
 	public final static String PARAM_OUTSIDE_TEMP = "OUTTEMP";
 	public final static String PARAM_TEMPTOL = "TEMPTOL";
+	public final static String PARAM_AGGREGATED_DATASET = "AGGDATASET";
 
 	public final static String MODE_DEFAULT = "default";
 	public final static String MODE_EDIT = "edit";
@@ -563,6 +565,7 @@ public class HeatingSystem {
 			Vector<String> classes = new Vector<String>();
 			classes.add(ActualRequiredTemperatureCommand.class
 					.getCanonicalName());
+			classes.add(AggregatedLeadTimesCommand.class.getCanonicalName());
 			classes.add(AlertCommand.class.getCanonicalName());
 			classes.add(AlertsCommand.class.getCanonicalName());
 			classes.add(BoilerStateCommand.class.getCanonicalName());
@@ -811,6 +814,8 @@ public class HeatingSystem {
 			registerParam(query, PARAM_TEMPTOL, "0.5", false,
 					"Tolerance below required temperature to trigger error",
 					true);
+			registerParam(query, PARAM_AGGREGATED_DATASET, "100000001", false,
+					"Data set number for aggregated data", true);
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
@@ -1014,6 +1019,24 @@ public class HeatingSystem {
 		} catch (XPathExpressionException e) {
 			return "";
 		}
+	}
+
+	public int getZoneIndex(String zone) {
+		int ins = -1;
+		try {
+			Document zonesList = getXMLFactory().newDocumentBuilder().parse(
+					new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes(
+							"UTF-8")));
+			ins = Integer.parseInt((String) getXPath().evaluate(
+					"count(/zones/zone[name='" + zone
+							+ "']/preceding-sibling::*)", zonesList,
+					XPathConstants.STRING));
+		} catch (SAXException | IOException | ParserConfigurationException
+				| NumberFormatException | XPathExpressionException e) {
+			e.printStackTrace();
+		}
+		return ins + 1;
+
 	}
 
 	public String getZoneProperty(String zone, String prop) {

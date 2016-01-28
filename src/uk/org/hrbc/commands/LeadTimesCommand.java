@@ -53,8 +53,11 @@ public class LeadTimesCommand extends CommandImpl {
 		}
 
 		public String getLast() {
-			return extreme + "("
-					+ HeatingSystem.SQL_DATE.format(new Date(last)) + ")";
+			return extreme + "(" + HeatingSystem.SQL_DATE.format(new Date(last)) + ")";
+		}
+
+		public Date getLastDate() {
+			return new Date(last);
 		}
 	}
 
@@ -63,19 +66,60 @@ public class LeadTimesCommand extends CommandImpl {
 
 	@Override
 	public CommandResponse execute(HeatingSystem system, int complete) {
-		StringBuffer xml = new StringBuffer("<leadtimes>");
-		String set = getArgument("set");
-		if (set != null && set.isEmpty()) {
-			set = null;
+		return getXmlResponse(system, "leadtimes");
+	}
+
+	@Override
+	public int getAccess() {
+		return HeatingSystem.ACCESS_ADMIN;
+	}
+
+	@Override
+	public Hashtable<String, String> getConditions(HeatingSystem system) {
+		return null;
+	}
+
+	@Override
+	public String getDescription(String mode) {
+		return "List lead times";
+	}
+
+	@Override
+	public Vector<String> getModes() {
+		return new Vector<String>(Arrays.asList(HeatingSystem.MODE_DEFAULT));
+	}
+
+	@Override
+	public boolean isPollable() {
+		return false;
+	}
+
+	public String getSet() {
+		String ret = getArgument("set");
+		if (ret != null && ret.isEmpty()) {
+			ret = null;
 		}
+		return ret;
+	}
+
+	public int getMeanInGroup(int inTemp) {
+		return inTemp;
+	}
+
+	public int getMeanOutGroup(int outTemp) {
+		return outTemp;
+	}
+
+	public CommandResponse getXmlResponse(HeatingSystem system, String tag) {
+		StringBuffer xml = new StringBuffer("<" + tag + ">");
+		String set = getSet();
 		String zone = getArgument("zone");
 		if (zone == null)
 			zone = system.getParam(HeatingSystem.PARAM_DEFAULTZONE);
 		xml.append("<zone>" + zone + "</zone>");
 		if (set != null) {
 			xml.append("<set>" + set + "</set>");
-			String sql = "SELECT * FROM tblleadtimes WHERE DataGroupId=" + set
-					+ " AND zone='" + zone + "'";
+			String sql = "SELECT * FROM tblleadtimes WHERE DataGroupId=" + set + " AND zone='" + zone + "'";
 			try {
 				ResultSet rs = system.executeQuery(sql);
 				HashMap<Integer, Limits> lims = new HashMap<Integer, Limits>();
@@ -106,18 +150,18 @@ public class LeadTimesCommand extends CommandImpl {
 						map = warmMeans;
 					}
 					HashMap<Integer, Means> means = null;
-					if (!map.containsKey(inTemp)) {
+					if (!map.containsKey(getMeanInGroup(inTemp))) {
 						means = new HashMap<Integer, Means>();
-						map.put(inTemp, means);
+						map.put(getMeanInGroup(inTemp), means);
 					} else {
-						means = map.get(inTemp);
+						means = map.get(getMeanInGroup(inTemp));
 					}
 					Means mean = null;
-					if (!means.containsKey(outTemp)) {
+					if (!means.containsKey(getMeanOutGroup(outTemp))) {
 						mean = new Means();
-						means.put(outTemp, mean);
+						means.put(getMeanOutGroup(outTemp), mean);
 					} else {
-						mean = means.get(outTemp);
+						mean = means.get(getMeanOutGroup(outTemp));
 					}
 
 					double val = (double) (rs.getInt(6)) / 10.0;
@@ -138,9 +182,13 @@ public class LeadTimesCommand extends CommandImpl {
 					}
 
 					Limits l = lims.get(state);
-					for (int in = l.minIn; in <= l.maxIn; in++) {
+					l.minIn = ((int) l.minIn / getStep()) * getStep();
+					l.minOut = ((int) l.minOut / getStep()) * getStep();
+					l.maxIn = ((int) (l.maxIn / getStep())) * getStep();
+					l.maxOut = ((int) (l.maxOut / getStep())) * getStep();
+					for (int in = l.minIn; in <= l.maxIn; in += getStep()) {
 						xml.append("<i><t>" + (in / 10.0) + "</t><os>");
-						for (int out = l.minOut; out <= l.maxOut; out++) {
+						for (int out = l.minOut; out <= l.maxOut; out += getStep()) {
 							Means m = null;
 							if (map.containsKey(in)) {
 								if (map.get(in).containsKey(out)) {
@@ -154,6 +202,12 @@ public class LeadTimesCommand extends CommandImpl {
 								xml.append("<s>-</s>");
 								xml.append("<l>-</l>");
 							} else {
+								sql = getSaveSql(zone, state, in, out, m.getAverage(), m.getLastDate(), true);
+								if (!sql.isEmpty() && Math.floor(m.getAverage()) != Math.ceil(m.getAverage())) {
+									system.executeQuery(sql);
+									sql = getSaveSql(zone, state, in, out, m.getAverage(), m.getLastDate(), false);
+									system.executeQuery(sql);
+								}
 								xml.append("<a>" + m.getAverage() + "</a>");
 								xml.append("<s>" + m.getSD() + "</s>");
 								xml.append("<l>" + m.getLast() + "</l>");
@@ -169,39 +223,24 @@ public class LeadTimesCommand extends CommandImpl {
 					}
 				}
 			} catch (SQLException e) {
-				return new SqlErrorResponse(sql, e.getMessage(),
-						getArgumentsXML());
+				return new SqlErrorResponse(sql, e.getMessage(), getArgumentsXML());
 			}
 
 		}
 
-		xml.append("</leadtimes>");
+		xml.append("</" + tag + ">");
 		return new SuccessResponse(xml.toString(), getArgumentsXML());
+
 	}
 
-	@Override
-	public int getAccess() {
-		return HeatingSystem.ACCESS_ADMIN;
+	protected int getStep() {
+		return 1;
 	}
 
-	@Override
-	public Hashtable<String, String> getConditions(HeatingSystem system) {
-		return null;
-	}
-
-	@Override
-	public String getDescription(String mode) {
-		return "List lead times";
-	}
-
-	@Override
-	public Vector<String> getModes() {
-		return new Vector<String>(Arrays.asList(HeatingSystem.MODE_DEFAULT));
-	}
-
-	@Override
-	public boolean isPollable() {
-		return false;
+	protected String getSaveSql(String zone, int state, int in, int out, double value, Date timestamp,
+			boolean lowerLimit) {
+		// Do nothing to save here so return blank sql
+		return "";
 	}
 
 }

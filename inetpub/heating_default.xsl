@@ -1861,13 +1861,56 @@
 		</p>
 	</xsl:template>
 
+	<xsl:template match="aggregates[@mode='default']">
+		<h2>Aggregate Times</h2>
+		<form method="post">
+			<label>Data Set:</label>
+			<input type="text" name="reset">
+				<xsl:attribute name="value">
+				</xsl:attribute>
+			</input>
+			<br />
+			<label>Zone:</label>
+			<input type="text" name="zone">
+				<xsl:attribute name="value"><xsl:value-of select="zone" />
+				</xsl:attribute>
+			</input>
+			<br />
+			<input name="view" type="submit" value="View" />
+		</form>
+		<xsl:call-template name="timedisplay">
+			<xsl:with-param name="readonly">
+				1
+			</xsl:with-param>
+		</xsl:call-template>
+	</xsl:template>
+
+	<xsl:template match="aggregates[@mode='edit']">
+		<h2>Aggregate Times</h2>
+		<form method="post">
+			<label>Reset To Data Set:</label>
+			<input type="text" name="reset">
+				<xsl:attribute name="value">
+				</xsl:attribute>
+			</input>
+			<br />
+			<label>Zone:</label>
+			<input type="text" name="zone">
+				<xsl:attribute name="value"><xsl:value-of select="zone" />
+				</xsl:attribute>
+			</input>
+			<br />
+			<input type="submit" value="Reset" />
+			<input name="view" type="submit" value="View" />
+			<xsl:call-template name="timedisplay">
+				<xsl:with-param name="readonly">
+					0
+				</xsl:with-param>
+			</xsl:call-template>
+		</form>
+	</xsl:template>
+
 	<xsl:template match="leadtimes[@mode='default']">
-        <style>
-            tr:nth-child(odd) { background-color: rgba(192,192,192,0.5)}
-            td:nth-child(odd) { background-color: rgba(192,192,192,0.5)}
-            .divs {display : none}
-            .divl {display : none; white-space : nowrap}
-        </style>
 		<h2>Lead Times</h2>
 		<form method="post">
 			<label>Data Set:</label>
@@ -1884,14 +1927,55 @@
 			<br />
 			<input type="submit" value="Retrieve" />
 		</form>
-        <h3>Display</h3>
-        <label>Average: </label><input type="radio" name="show" value="a" checked="true" onclick="updateTable()"/><label> SD: </label><input type="radio" name="show" value="s" onclick="updateTable()"/><label> Last: </label><input type="radio" name="show" value="l" onclick="updateTable()"/>
+		<xsl:call-template name="timedisplay">
+			<xsl:with-param name="readonly">
+				1
+			</xsl:with-param>
+		</xsl:call-template>
+	</xsl:template>
+
+	<xsl:template name="timedisplay">
+		<xsl:param name="readonly" />
+		<style>
+			tr:nth-child(odd) { background-color: rgba(192,192,192,0.5)}
+			td:nth-child(odd) { background-color: rgba(192,192,192,0.5)}
+			.divs
+			{display : none}
+			.divl {display : none; white-space : nowrap}
+		</style>
+		<h3>Display</h3>
+		<label>Average: </label>
+		<input type="radio" name="show" value="a" checked="true"
+			onclick="updateTable()" />
+		<label> SD: </label>
+		<input type="radio" name="show" value="s" onclick="updateTable()" />
+		<label> Last: </label>
+		<input type="radio" name="show" value="l" onclick="updateTable()" />
 		<h3>Warming</h3>
 		<table>
 			<xsl:for-each select="warming/i">
+				<xsl:variable name="line">
+					<xsl:value-of select="position() - 1" />
+				</xsl:variable>
+				<xsl:variable name="linesize">
+					<xsl:value-of select="count(os/o)" />
+				</xsl:variable>
 				<xsl:if test="position() = 1">
 					<tr>
-						<td></td>
+						<td>
+							<input type="hidden" name="aggwcols">
+								<xsl:attribute name="value"><xsl:value-of
+									select="$linesize" /></xsl:attribute>
+							</input>
+							<input type="hidden" name="aggwminin">
+								<xsl:attribute name="value"><xsl:value-of
+									select="t" /></xsl:attribute>
+							</input>
+							<input type="hidden" name="aggwminout">
+								<xsl:attribute name="value"><xsl:value-of
+									select="os/o[1]/t" /></xsl:attribute>
+							</input>
+						</td>
 						<xsl:for-each select="os/o">
 							<td>
 								<xsl:value-of select="t" />
@@ -1905,9 +1989,30 @@
 					</td>
 					<xsl:for-each select="os/o">
 						<td>
-							<div class="diva"><xsl:value-of select="a" /></div>
-							<div class="divs"><xsl:value-of select="s" /></div>
-							<div class="divl"><xsl:value-of select="l" /></div>
+							<div class="diva">
+								<xsl:if test="$readonly = 1">
+									<xsl:value-of select="a" />
+								</xsl:if>
+								<xsl:if test="$readonly = 0">
+									<input type="text">
+										<xsl:attribute name="oninput">keyHandler('_aggwtemp<xsl:value-of
+											select="$line * $linesize + position()" />')</xsl:attribute>
+										<xsl:attribute name="name">_aggwtemp<xsl:value-of
+											select="$line * $linesize + position()" /></xsl:attribute>
+										<xsl:attribute name="id">_aggwtemp<xsl:value-of
+											select="$line * $linesize + position()" /></xsl:attribute>
+										<xsl:attribute name="value"><xsl:value-of
+											select="a" />
+									</xsl:attribute>
+									</input>
+								</xsl:if>
+							</div>
+							<div class="divs">
+								<xsl:value-of select="s" />
+							</div>
+							<div class="divl">
+								<xsl:value-of select="l" />
+							</div>
 						</td>
 					</xsl:for-each>
 				</tr>
@@ -1916,9 +2021,28 @@
 		<h3>Cooling</h3>
 		<table>
 			<xsl:for-each select="cooling/i">
+				<xsl:variable name="line">
+					<xsl:value-of select="position() - 1" />
+				</xsl:variable>
+				<xsl:variable name="linesize">
+					<xsl:value-of select="count(os/o)" />
+				</xsl:variable>
 				<xsl:if test="position() = 1">
 					<tr>
-						<td></td>
+						<td>
+							<input type="hidden" name="aggccols">
+								<xsl:attribute name="value"><xsl:value-of
+									select="$linesize" /></xsl:attribute>
+							</input>
+							<input type="hidden" name="aggcminin">
+								<xsl:attribute name="value"><xsl:value-of
+									select="t" /></xsl:attribute>
+							</input>
+							<input type="hidden" name="aggcminout">
+								<xsl:attribute name="value"><xsl:value-of
+									select="os/o[1]/t" /></xsl:attribute>
+							</input>
+						</td>
 						<xsl:for-each select="os/o">
 							<td>
 								<xsl:value-of select="t" />
@@ -1932,9 +2056,30 @@
 					</td>
 					<xsl:for-each select="os/o">
 						<td>
-							<div class="diva"><xsl:value-of select="a" /></div>
-							<div class="divs"><xsl:value-of select="s" /></div>
-							<div class="divl"><xsl:value-of select="l" /></div>
+							<div class="diva">
+								<xsl:if test="$readonly = 1">
+									<xsl:value-of select="a" />
+								</xsl:if>
+								<xsl:if test="$readonly = 0">
+									<input type="text">
+										<xsl:attribute name="oninput">keyHandler('_aggctemp<xsl:value-of
+											select="$line * $linesize + position()" />')</xsl:attribute>
+										<xsl:attribute name="name">_aggctemp<xsl:value-of
+											select="$line * $linesize + position()" /></xsl:attribute>
+										<xsl:attribute name="id">_aggctemp<xsl:value-of
+											select="$line * $linesize + position()" /></xsl:attribute>
+										<xsl:attribute name="value"><xsl:value-of
+											select="a" />
+									</xsl:attribute>
+									</input>
+								</xsl:if>
+							</div>
+							<div class="divs">
+								<xsl:value-of select="s" />
+							</div>
+							<div class="divl">
+								<xsl:value-of select="l" />
+							</div>
 						</td>
 					</xsl:for-each>
 				</tr>

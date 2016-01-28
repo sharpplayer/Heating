@@ -170,3 +170,9 @@
       updateElements(document.querySelectorAll('.divl'), 'none');
       updateElements(document.querySelectorAll('.div' + val), 'block');
   }
+
+  function keyHandler(name) {
+      if (document.getElementById(name)) {
+          document.getElementById(name).name = name.substr(1);
+      }
+  }

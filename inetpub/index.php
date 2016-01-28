@@ -112,7 +112,6 @@
         $sXML .= "<arg id=\"" . trim($sKey) . "\">" . trim(htmlspecialchars($sValue)) . "</arg>";
 
   $sXML = "<args>" . $sXML . "</args>";
-
   $oPending = new CRowtblpending();
   $oPending->SetGroupId($nCommandGroup);
   $oPending->SetInTimestamp(date("Y-m-d H:i:s"));
@@ -158,7 +157,7 @@
           }
           else
           {
-            $sXML = substr($sXML, 0, $nIndex) . " mode=\"" . $sMode . "\" val=\"$nIndex $nIndexEnd\"" . substr($sXML, $nIndex);
+            $sXML = substr($sXML, 0, $nIndex) . " mode=\"" . $sMode . "\" val=\"$nIndex-$nIndexEnd\"" . substr($sXML, $nIndex);
           }
           $sMessage .= $sXML;
           $sXML = "";

@@ -16,7 +16,6 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Hashtable;
-import java.util.Map.Entry;
 import java.util.Vector;
 
 import net.fortuna.ical4j.data.CalendarBuilder;
@@ -311,8 +310,7 @@ public class ZimbraCommand extends CommandImpl {
 									allEvents.add(event);
 								}
 								LocTemp loc = null;
-								for (String zone : system.getZonesMap()
-										.keySet()) {
+								for (String zone : system.getZonesMap().keySet()) {
 									String locNames = system.getLocations(zone);
 									loc = getLocation(zone,
 											system.getDefaultTemp(zone), event,
@@ -540,6 +538,7 @@ public class ZimbraCommand extends CommandImpl {
 									OccupancyCommand.class,
 									HeatingSystem.MODE_EDIT, sqlArgs, true);
 							if (pend == -1) {
+								conn.close();
 								throw new SQLException();
 							}
 							ret += "</occupancy>";
