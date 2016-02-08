@@ -923,6 +923,12 @@
 			<label>Password:</label>
 			<input name="password" type="password" />
 			<br />
+			<label>Action:</label>
+			<select name="action">
+				<option value="preview">Preview</option>
+				<option value="command">Issue Command To Heating System</option>
+			</select>
+			<br />
 			<input type="submit" value="Go" />
 		</form>
 		<xsl:for-each select="occupancy">
@@ -1315,7 +1321,7 @@
 					<xsl:when test="args/arg">
 						<xsl:for-each select="args/arg">
 							<div>
-								<xsl:attribute name="id">div<xsl:value-of
+								<xsl:attribute name="id">divarg<xsl:value-of
 									select="position()" />
 								</xsl:attribute>
 								<input type="text">
@@ -1346,12 +1352,12 @@
 										<xsl:value-of select="position()" />
 										)
 									</xsl:attribute>
-									<xsl:attribute name="id">_bp<xsl:value-of
+									<xsl:attribute name="id">_bparg<xsl:value-of
 										select="position()" />
 								</xsl:attribute>
 								</input>
 								<input type="button" value="-">
-									<xsl:attribute name="id">_bm<xsl:value-of
+									<xsl:attribute name="id">_bmarg<xsl:value-of
 										select="position()" />
 								</xsl:attribute>
 									<xsl:attribute name="onclick">
@@ -1364,13 +1370,13 @@
 						</xsl:for-each>
 					</xsl:when>
 					<xsl:otherwise>
-						<div id="div1">
+						<div id="divarg1">
 							<input type="text" id="arg1" name="arg1" />
 							<input type="text" id="val1" name="val1" />
 							<input type="button" onclick="javascript:return addArg(1)"
-								id="_bp1" value="+" />
+								id="_bparg1" value="+" />
 							<input type="button" onClick="javascript:return removeArg(1)"
-								id="_bm1" value="-" />
+								id="_bmarg1" value="-" />
 						</div>
 					</xsl:otherwise>
 				</xsl:choose>
@@ -1689,10 +1695,10 @@
 			<label>Arguments:</label>
 			<div id="args">
 				<xsl:choose>
-					<xsl:when test="args/arg">
-						<xsl:for-each select="args/arg">
+					<xsl:when test="condargs/args/arg">
+						<xsl:for-each select="condargs/args/arg">
 							<div>
-								<xsl:attribute name="id">div<xsl:value-of
+								<xsl:attribute name="id">divarg<xsl:value-of
 									select="position()" />
 								</xsl:attribute>
 								<input type="text">
@@ -1723,12 +1729,12 @@
 										<xsl:value-of select="position()" />
 										)
 									</xsl:attribute>
-									<xsl:attribute name="id">_bp<xsl:value-of
+									<xsl:attribute name="id">_bparg<xsl:value-of
 										select="position()" />
 								</xsl:attribute>
 								</input>
 								<input type="button" value="-">
-									<xsl:attribute name="id">_bm<xsl:value-of
+									<xsl:attribute name="id">_bmarg<xsl:value-of
 										select="position()" />
 								</xsl:attribute>
 									<xsl:attribute name="onclick">
@@ -1741,17 +1747,106 @@
 						</xsl:for-each>
 					</xsl:when>
 					<xsl:otherwise>
-						<div id="div1">
+						<div id="divarg1">
 							<input type="text" id="arg1" name="arg1" />
 							<input type="text" id="val1" name="val1" />
 							<input type="button" onclick="javascript:return addArg(1)"
-								id="_bp1" value="+" />
+								id="_bparg1" value="+" />
 							<input type="button" onClick="javascript:return removeArg(1)"
-								id="_bm1" value="-" />
+								id="_bmarg1" value="-" />
 						</div>
 					</xsl:otherwise>
 				</xsl:choose>
 			</div>
+			<br />
+			<br />
+			<label>Recovery:</label>
+			<select name="recover">
+				<xsl:for-each select="commands/command">
+					<option>
+						<xsl:attribute name="value"><xsl:value-of
+							select="id" />
+						</xsl:attribute>
+						<xsl:if test="../../alert = id">
+							<xsl:attribute name="selected">true</xsl:attribute>
+						</xsl:if>
+						<xsl:value-of select="description" />
+					</option>
+				</xsl:for-each>
+			</select>
+			<br />
+			<label>Arguments:</label>
+			<div id="rargs">
+				<xsl:choose>
+					<xsl:when test="recargs/args/arg">
+						<xsl:for-each select="recargs/args/arg">
+							<div>
+								<xsl:attribute name="id">divrarg<xsl:value-of
+									select="position()" />
+								</xsl:attribute>
+								<input type="text">
+									<xsl:attribute name="id">rarg<xsl:value-of
+										select="position()" />
+								</xsl:attribute>
+									<xsl:attribute name="name">rarg<xsl:value-of
+										select="position()" />
+								</xsl:attribute>
+									<xsl:attribute name="value"><xsl:value-of
+										select="@id" />
+								</xsl:attribute>
+								</input>
+								<input type="text">
+									<xsl:attribute name="id">rval<xsl:value-of
+										select="position()" />
+								</xsl:attribute>
+									<xsl:attribute name="name">rval<xsl:value-of
+										select="position()" />
+								</xsl:attribute>
+									<xsl:attribute name="value"><xsl:value-of
+										select="." />
+								</xsl:attribute>
+								</input>
+								<input type="button" value="+">
+									<xsl:attribute name="onclick">
+										javascript:return addAnyArg ('rarg', 'rval',
+										<xsl:value-of select="position()" />
+										)
+									</xsl:attribute>
+									<xsl:attribute name="id">_bprarg<xsl:value-of
+										select="position()" />
+								</xsl:attribute>
+								</input>
+								<input type="button" value="-">
+									<xsl:attribute name="id">_bmrarg<xsl:value-of
+										select="position()" />
+								</xsl:attribute>
+									<xsl:attribute name="onclick">
+										javascript:return removeAnyArg ('rarg', 'rval',
+										<xsl:value-of select="position()" />
+										)
+									</xsl:attribute>
+								</input>
+							</div>
+						</xsl:for-each>
+					</xsl:when>
+					<xsl:otherwise>
+						<div id="divrarg1">
+							<input type="text" id="rarg1" name="rarg1" />
+							<input type="text" id="rval1" name="rval1" />
+							<input type="button" onclick="javascript:return addAnyArg('rarg','rval',1)"
+								id="_bprarg1" value="+" />
+							<input type="button" onClick="javascript:return removeAnyArg('rarg','rval',1)"
+								id="_bmrarg1" value="-" />
+						</div>
+					</xsl:otherwise>
+				</xsl:choose>
+			</div>
+			<label>Recovery delay:</label>
+			<input name="rdelay" type="text">
+				<xsl:attribute name="value"><xsl:value-of select="delay" />
+						</xsl:attribute>
+			</input>
+			<br />
 			<xsl:choose>
 				<xsl:when test="alertid">
 					<input type="submit" value="Update" />

@@ -5,7 +5,7 @@
 		<description>Sanctuary</description>
 		<type>Zone</type>
 		<locations>Sanctuary.*</locations>
-		<defaultTemp>19</defaultTemp>
+		<defaultTemp>20</defaultTemp>
 	</zone>
 	<zone>
 		<name>z2</name>
@@ -13,7 +13,7 @@
 		<controller>h3</controller>
 		<type>Zone</type>
 		<locations>Hall</locations>
-		<defaultTemp>19</defaultTemp>
+		<defaultTemp>20</defaultTemp>
 	</zone>
 	<zone>
 		<name>h1</name>

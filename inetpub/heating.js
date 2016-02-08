@@ -1,59 +1,68 @@
-  function addArg(id) {
+  function addAnyArg(argprefix, valprefix, id) {
     var i = id + 1;
-    while(document.getElementById("arg" + i))
+    while(document.getElementById(argprefix + i))
       i++;
     var d = document.createElement("div");
-    d.setAttribute("id", "div" + i);
-    document.getElementById("args").appendChild(d);
+    d.setAttribute("id", "div" + argprefix + i);
+    document.getElementById(argprefix + "s").appendChild(d);
     var ni = document.createElement("input");
-    ni.setAttribute("name", "arg" + i);
-    ni.setAttribute("id", "arg" + i);
+    ni.setAttribute("name", argprefix + i);
+    ni.setAttribute("id", argprefix + i);
     ni.setAttribute("type", "text");    
     d.appendChild(ni);
     ni = document.createElement("input");
-    ni.setAttribute("name", "val" + i);
-    ni.setAttribute("id", "val" + i);
+    ni.setAttribute("name", valprefix + i);
+    ni.setAttribute("id", valprefix + i);
     ni.setAttribute("type", "text");    
     d.appendChild(ni);
     ni = document.createElement("input");
-    ni.setAttribute("id", "_bp" + i);
+    ni.setAttribute("id", "_bp" + argprefix + i);
     ni.setAttribute("type", "button");    
     ni.value = "+";
     d.appendChild(ni);    
-    ni.onclick=Function("return addArg(" + i + ");");
+    ni.onclick=Function("return addAnyArg('" + argprefix + "','" + valprefix + "'," + i + ");");
     ni = document.createElement("input");
-    ni.setAttribute("id", "_bm" + i);
-    ni.onclick=Function("return removeArg(" + i + ");");
+    ni.setAttribute("id", "_bm" + argprefix + i);
+    ni.onclick=Function("return removeAnyArg('" + argprefix + "','" + valprefix + "'," + i + ");");
     ni.setAttribute("type", "button");
     ni.value = "-";
-    d.appendChild(ni);    
+    d.appendChild(ni);
     while(i > id + 1) {
-      document.getElementById("arg" + i).value = document.getElementById("arg" + (i - 1)).value;
-      document.getElementById("val" + i).value = document.getElementById("val" + (i - 1)).value;
+      document.getElementById(argprefix + i).value = document.getElementById(argprefix + (i - 1)).value;
+      document.getElementById(valprefix + i).value = document.getElementById(valprefix + (i - 1)).value;
       i--;
     }
-    document.getElementById("arg" + (id+1)).value = "";
-    document.getElementById("val" + (id+1)).value = "";
+    document.getElementById(argprefix + (id+1)).value = "";
+    document.getElementById(valprefix + (id+1)).value = "";
+    return false;
+  }
+
+  function addArg(id) {
+	  addAnyArg("arg", "val", id);
+  }
+
+  function removeAnyArg(argprefix, valprefix, id) {
+    var d = document.getElementById(argprefix + "s");
+    var i = id + 1;
+    while(document.getElementById(argprefix + i)) {
+      document.getElementById(argprefix + (i - 1)).value = document.getElementById(argprefix + i).value;
+      document.getElementById(valprefix + (i - 1)).value = document.getElementById(valprefix + i).value;
+      i++;
+    }
+    if((id == 1) && (i == 2)) {
+      document.getElementById(argprefix + "1").value = "";
+      document.getElementById(valprefix + "1").value = "";
+    }
+    else
+      d.removeChild(document.getElementById("div" + argprefix + (i - 1)));
+ 
     return false;
   }
 
   function removeArg(id) {
-    var d = document.getElementById("args");
-    var i = id + 1;
-    while(document.getElementById("arg" + i)) {
-      document.getElementById("arg" + (i - 1)).value = document.getElementById("arg" + i).value;
-      document.getElementById("val" + (i - 1)).value = document.getElementById("val" + i).value;
-      i++;
-    }
-    if((id == 1) && (i == 2)) {
-      document.getElementById("arg1").value = "";
-      document.getElementById("val1").value = "";
-    }
-    else
-      d.removeChild(document.getElementById("div" + (i - 1)));
- 
-    return false;
+	  removeAnyArg("arg", "val", id);
   }
+  
 
   function addCond(id) {
     var i = id + 1;
@@ -67,13 +76,13 @@
     ni.setAttribute("id", "condition" + i);    
     d.appendChild(ni);
     ni = document.createElement("input");
-    ni.setAttribute("id", "_bp" + i);
+    ni.setAttribute("id", "_bp" + argprefix + i);
     ni.onclick=Function("return addCond(" + i + ")");
     ni.setAttribute("type", "button");    
     ni.value = "+";
     d.appendChild(ni);    
     ni = document.createElement("input");
-    ni.setAttribute("id", "_bm" + i);
+    ni.setAttribute("id", "_bm" + argprefix + i);
     ni.onclick=Function("return removeCond(" + i + ")");
     ni.setAttribute("type", "button");
     ni.value = "-";

@@ -26,7 +26,7 @@ public abstract class BasicCommand extends RecyclableCommand {
 				String mess = "[" + obj + "]" + command + "(V)";
 				String key = system.sendMessage(mess, true);
 				String resp = system.receiveMessage(key);
-				String val = getValidXML(resp.substring(5 + command.length()));
+				String val = getValidXML(resp.substring(5 + command.length()), true);
 				return "<value>" + val + "</value>";
 			} catch (CommsResendException e) {
 				retry--;

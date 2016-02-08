@@ -87,8 +87,7 @@ public class ZimbraCommand extends CommandImpl {
 
 		@Override
 		public String toString() {
-			return new SimpleDateFormat().format(new Date(time)) + " for "
-					+ duration + ":" + temp;
+			return new SimpleDateFormat().format(new Date(time)) + " for " + duration + ":" + temp;
 		}
 	}
 
@@ -106,17 +105,14 @@ public class ZimbraCommand extends CommandImpl {
 
 		@Override
 		public String toString() {
-			String ret = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss")
-					.format(new Date(getTimeMillis()))
-					+ "- Occ:"
-					+ occupied
-					+ ", Heat:";
+			String ret = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date(getTimeMillis())) + "- Occ:"
+					+ occupied + ", Heat:";
 			ret += heatingOn;
 			return ret;
 		}
 
-		public void initialise(HeatingSystem sys, Vector<Required> reqs,
-				long now, long offset, Heating prev, String zone) {
+		public void initialise(HeatingSystem sys, Vector<Required> reqs, long now, long offset, Heating prev,
+				String zone) {
 			this.prev = prev;
 			this.now = now;
 			if (prev != null) {
@@ -141,15 +137,13 @@ public class ZimbraCommand extends CommandImpl {
 			heatingOn = false;
 			if (timeOffset == 0) {
 				// From system
-				outside = Double.parseDouble(sys
-						.getParam(HeatingSystem.PARAM_OUTSIDE_TEMP));
+				outside = Double.parseDouble(sys.getParam(HeatingSystem.PARAM_OUTSIDE_TEMP));
 			} else {
 				// From forecast
 				outside = sys.getTempForecast(now + timeOffset);
 			}
 			if (prev != null) {
-				inside = sys.getNextTemp(zone, prev.inside, prev.outside,
-						prev.heatingOn, INTERVAL);
+				inside = sys.getNextTemp(zone, prev.inside, prev.outside, prev.heatingOn, INTERVAL);
 			} else {
 				inside = 15; // From system
 			}
@@ -160,8 +154,7 @@ public class ZimbraCommand extends CommandImpl {
 			}
 		}
 
-		public Heating addNext(HeatingSystem sys, Vector<Required> reqs,
-				long interval, String zone) {
+		public Heating addNext(HeatingSystem sys, Vector<Required> reqs, long interval, String zone) {
 			next = new Heating();
 			next.initialise(sys, reqs, now, timeOffset + interval, this, zone);
 			return next;
@@ -172,13 +165,11 @@ public class ZimbraCommand extends CommandImpl {
 				if (inside < target) {
 					if (prev != null && !prev.heatingOn && !prev.occupied) {
 						prev.heatingOn = true;
-						long hash = (int) (prev.outside * 100) * 10000
-								+ (int) (target * 100);
+						long hash = (int) (prev.outside * 100) * 10000 + (int) (target * 100);
 						if (temps.containsKey(hash)) {
 							prev.target = temps.get(hash);
 						} else {
-							prev.target = sys.getTempToReach(zone, target,
-									prev.outside, prev.heatingOn, INTERVAL);
+							prev.target = sys.getTempToReach(zone, target, prev.outside, prev.heatingOn, INTERVAL);
 							temps.put(hash, prev.target);
 						}
 						return prev.calculate(sys, zone);
@@ -225,21 +216,21 @@ public class ZimbraCommand extends CommandImpl {
 
 		String username = getArgument("username");
 		String password = getArgument("password");
+		String actionString = getArgument("action");
+		boolean preview = actionString != null && actionString.equalsIgnoreCase("preview");
 		InputStream conn = null;
 		String sqlArgs = "";
 		String sql = "";
 
 		double tempTolerance = 0.5;
 		try {
-			tempTolerance = Double.parseDouble(system
-					.getParam(HeatingSystem.PARAM_TEMPTOL));
+			tempTolerance = Double.parseDouble(system.getParam(HeatingSystem.PARAM_TEMPTOL));
 		} catch (NumberFormatException ex) {
 		}
 
 		if (username != null && !username.isEmpty()) {
 			try {
-				String[] paramsUrl = new String[] { HeatingSystem.PARAM_ZIMBRA,
-						HeatingSystem.PARAM_ZIMBRA2 };
+				String[] paramsUrl = new String[] { HeatingSystem.PARAM_ZIMBRA, HeatingSystem.PARAM_ZIMBRA2 };
 				URLConnection uc = null;
 				Vector<VEvent> processedEvents = new Vector<VEvent>();
 				Vector<VEvent> allEvents = new Vector<VEvent>();
@@ -259,8 +250,7 @@ public class ZimbraCommand extends CommandImpl {
 				// create a period starting now with a duration of one week
 				// (8
 				// days)..
-				Period period = new Period(new DateTime(now.getTime()),
-						new DateTime(now2.getTime()));
+				Period period = new Period(new DateTime(now.getTime()), new DateTime(now2.getTime()));
 				Rule[] rules = new Rule[] { new PeriodRule(period) };
 				Filter filter = new Filter(rules, Filter.MATCH_ALL);
 				now.add(Calendar.HOUR, 12);
@@ -283,10 +273,8 @@ public class ZimbraCommand extends CommandImpl {
 							uc = new URL(url).openConnection();
 
 							String userPassword = username + ":" + password;
-							String encoding = new BASE64Encoder()
-									.encode(userPassword.getBytes());
-							uc.setRequestProperty("Authorisation", "Basic "
-									+ encoding);
+							String encoding = new BASE64Encoder().encode(userPassword.getBytes());
+							uc.setRequestProperty("Authorisation", "Basic " + encoding);
 						} else {
 							uc = new URL(url).openConnection();
 						}
@@ -297,11 +285,9 @@ public class ZimbraCommand extends CommandImpl {
 						conn.read(data);
 
 						StringReader sr = new StringReader(new String(data));
-						net.fortuna.ical4j.model.Calendar calendar = builder
-								.build(sr);
+						net.fortuna.ical4j.model.Calendar calendar = builder.build(sr);
 
-						Collection<?> events = filter.filter(calendar
-								.getComponents(Component.VEVENT));
+						Collection<?> events = filter.filter(calendar.getComponents(Component.VEVENT));
 
 						for (Object obj : events) {
 							if (obj instanceof VEvent) {
@@ -312,46 +298,31 @@ public class ZimbraCommand extends CommandImpl {
 								LocTemp loc = null;
 								for (String zone : system.getZonesMap().keySet()) {
 									String locNames = system.getLocations(zone);
-									loc = getLocation(zone,
-											system.getDefaultTemp(zone), event,
-											locNames);
-									if (loc != null) {
+									loc = getLocation(zone, system.getDefaultTemp(zone), event, locNames);
+									if (loc != null && !loc.isEmpty()) {
 										if (!reqs.containsKey(zone)) {
-											reqs.put(
-													zone,
-													new Vector<ZimbraCommand.Required>());
+											reqs.put(zone, new Vector<ZimbraCommand.Required>());
 										}
-										break;
-									}
-								}
 
-								if (loc != null && !loc.isEmpty()) {
-									if (processedEvents.contains(event)) {
-										// Error?, event already processed
-										// for
-										// loc
-									} else {
-										processedEvents.add(event);
-									}
-									PeriodList perl = event
-											.calculateRecurrenceSet(period);
-									for (Object p : perl) {
-										if (p instanceof Period) {
-											Period pd = (Period) p;
-											System.out.println(pd.getStart()
-													+ "->" + pd.getEnd());
-											Required req = new Required();
-											req.occupied = true;
-											req.time = pd.getStart().getTime();
-											req.temp = loc.temp;
-											Dur dur = pd.getDuration();
-											long durM = dur.getDays() * 24 * 60
-													* 60 + dur.getHours() * 60
-													* 60 + dur.getMinutes()
-													* 60 + dur.getSeconds();
-											durM *= 1000;
-											req.duration = durM;
-											reqs.get(loc.getZone()).add(req);
+										if (!processedEvents.contains(event)) {
+											processedEvents.add(event);
+										}
+										PeriodList perl = event.calculateRecurrenceSet(period);
+										for (Object p : perl) {
+											if (p instanceof Period) {
+												Period pd = (Period) p;
+												System.out.println(pd.getStart() + "->" + pd.getEnd());
+												Required req = new Required();
+												req.occupied = true;
+												req.time = pd.getStart().getTime();
+												req.temp = loc.temp;
+												Dur dur = pd.getDuration();
+												long durM = dur.getDays() * 24 * 60 * 60 + dur.getHours() * 60 * 60
+														+ dur.getMinutes() * 60 + dur.getSeconds();
+												durM *= 1000;
+												req.duration = durM;
+												reqs.get(loc.getZone()).add(req);
+											}
 										}
 									}
 								}
@@ -387,19 +358,16 @@ public class ZimbraCommand extends CommandImpl {
 						if (requireds != null) {
 							Heating current = new Heating();
 							Heating first = current;
-							current.initialise(system, requireds,
-									now.getTimeInMillis(), 0, null, zone);
+							current.initialise(system, requireds, now.getTimeInMillis(), 0, null, zone);
 							while (current.getTimeMillis() < endTime) {
-								current = current.addNext(system, requireds,
-										INTERVAL, zone);
+								current = current.addNext(system, requireds, INTERVAL, zone);
 							}
 
 							Heating start = null;
 							current = first;
 							while (current != null) {
 								// Weeks start on Monday in heating system
-								if (current.getDay() == 1
-										&& current.getTime() == 0) {
+								if (current.getDay() == 1 && current.getTime() == 0) {
 									if (current.prev != null) {
 										current.prev.next = null;
 									}
@@ -412,8 +380,7 @@ public class ZimbraCommand extends CommandImpl {
 									current = current.next;
 								}
 								// Failed to reach target temperature
-								if (!tempNotReached.contains(zone)
-										&& current != null
+								if (!tempNotReached.contains(zone) && current != null
 										&& current.target - tempTolerance > current.inside) {
 									tempNotReached.add(zone);
 								}
@@ -439,71 +406,47 @@ public class ZimbraCommand extends CommandImpl {
 									heating = true;
 									boolean add = true;
 									if (id == 4) {
-										int firstInt = occs.get("occin" + day
-												+ "1")
-												- occs.get("occout" + day + "0");
-										int secondInt = occs.get("occin" + day
-												+ "2")
-												- occs.get("occout" + day + "1");
-										int lastInt = occs.get("occin" + day
-												+ "2")
-												- start.getTime();
+										int firstInt = occs.get("occin" + day + "1") - occs.get("occout" + day + "0");
+										int secondInt = occs.get("occin" + day + "2") - occs.get("occout" + day + "1");
+										int lastInt = occs.get("occin" + day + "2") - start.getTime();
 										// Last interval smallest, keep last
 										// start
 										// time
-										if (lastInt <= secondInt
-												&& lastInt <= firstInt) {
+										if (lastInt <= secondInt && lastInt <= firstInt) {
 											add = false;
-										} else if (firstInt <= secondInt
-												&& firstInt <= lastInt)
+										} else if (firstInt <= secondInt && firstInt <= lastInt)
 										// First interval smallest, combine
 										// first
 										// two intervals and move second up
 										{
-											occs.put(
-													"occout" + day + "0",
-													occs.get("occout" + day
-															+ "1"));
-											occs.put(
-													"occin" + day + "1",
-													occs.get("occin" + day
-															+ "2"));
-											occs.put(
-													"occout" + day + "1",
-													occs.get("occout" + day
-															+ "2"));
+											occs.put("occout" + day + "0", occs.get("occout" + day + "1"));
+											occs.put("occin" + day + "1", occs.get("occin" + day + "2"));
+											occs.put("occout" + day + "1", occs.get("occout" + day + "2"));
 										} else
 										// Second interval smallest, so
 										// combine
 										// with
 										// last
 										{
-											occs.put(
-													"occout" + day + "1",
-													occs.get("occout" + day
-															+ "2"));
+											occs.put("occout" + day + "1", occs.get("occout" + day + "2"));
 										}
 										id = 3;
 									}
 									if (add) {
-										occs.put("occin" + day + id,
-												start.getTime());
+										occs.put("occin" + day + id, start.getTime());
 									}
 								} else if (heating && !start.heatingOn) {
 									heating = false;
-									occs.put("occout" + day + id,
-											start.getTime());
+									occs.put("occout" + day + id, start.getTime());
 									id++;
 								}
 								start = start.next;
 							}
 
-							sqlArgs = "<args><arg id=\"zone\">" + zone
-									+ "</arg>";
+							sqlArgs = "<args><arg id=\"zone\">" + zone + "</arg>";
 							for (day = 1; day <= 7; day++) {
 								ret += "<day>";
-								ret += "<weekday>" + ((day % 7) + 1)
-										+ "</weekday>";
+								ret += "<weekday>" + ((day % 7) + 1) + "</weekday>";
 								ret += "<times>";
 								for (id = 0; id < 3; id++) {
 									String idin = "occin" + day + id;
@@ -516,14 +459,10 @@ public class ZimbraCommand extends CommandImpl {
 									if (occs.containsKey(idout)) {
 										valout = occs.get(idout);
 									}
-									sqlArgs += "<arg id=\"" + idin + "\">"
-											+ valin + "</arg>";
-									sqlArgs += "<arg id=\"" + idout + "\">"
-											+ valout + "</arg>";
-									ret += "<in id=\"occin" + day + id + "\">"
-											+ valin + "</in>";
-									ret += "<out id=\"occout" + day + id
-											+ "\">" + valout + "</out>";
+									sqlArgs += "<arg id=\"" + idin + "\">" + valin + "</arg>";
+									sqlArgs += "<arg id=\"" + idout + "\">" + valout + "</arg>";
+									ret += "<in id=\"occin" + day + id + "\">" + valin + "</in>";
+									ret += "<out id=\"occout" + day + id + "\">" + valout + "</out>";
 								}
 								ret += "</times>";
 								ret += "</day>";
@@ -531,15 +470,15 @@ public class ZimbraCommand extends CommandImpl {
 							sqlArgs += "</args>";
 
 							// This is not true sql, but instead a traceable
-							// error
-							// if the pending fails
-							sql = "Selecting and Inserting OccupancyCommand into tblPending";
-							int pend = system.pendCommand(
-									OccupancyCommand.class,
-									HeatingSystem.MODE_EDIT, sqlArgs, true);
-							if (pend == -1) {
-								conn.close();
-								throw new SQLException();
+							// error if the pending fails
+							if (!preview) {
+								sql = "Selecting and Inserting OccupancyCommand into tblPending";
+								int pend = system.pendCommand(OccupancyCommand.class, HeatingSystem.MODE_EDIT, sqlArgs,
+										true);
+								if (pend == -1) {
+									conn.close();
+									throw new SQLException();
+								}
 							}
 							ret += "</occupancy>";
 						}
@@ -554,8 +493,11 @@ public class ZimbraCommand extends CommandImpl {
 						if (!processedEvents.contains(obj)) {
 							if (obj instanceof VEvent) {
 								VEvent event = (VEvent) obj;
-								String loc = getLocation(event);
-								if (loc.isEmpty()) {
+								String loc = "";
+								if (event.getLocation() != null) {
+									loc = event.getLocation().getValue();
+								}
+								if (loc == null || loc.isEmpty()) {
 									loc = "[NO LOCATION SPECIFIED]";
 								}
 								if (!locs.contains(loc)) {
@@ -569,26 +511,22 @@ public class ZimbraCommand extends CommandImpl {
 				if (locs.size() > 0 || tempNotReached.size() > 0) {
 					ret += "<errors>";
 					for (String zone : tempNotReached) {
-						ret += "<error>Cannot reach temperature in zone "
-								+ zone + "</error>";
+						ret += "<error>Cannot reach temperature in zone " + zone + "</error>";
 					}
 					for (String loc : locs) {
-						ret += "<error>" + loc + "</error>";
+						ret += "<error>Unknown location " + getValidXML(loc, true) + "</error>";
 					}
 					ret += "</errors>";
 				}
 
 			} catch (MalformedURLException e) {
-				retResp = new URLErrorResponse(url, e.getClass()
-						.getSimpleName() + ":" + e.getMessage(),
+				retResp = new URLErrorResponse(url, e.getClass().getSimpleName() + ":" + e.getMessage(),
 						getArgumentsXML());
 			} catch (IOException e) {
-				retResp = new URLErrorResponse(url, e.getClass()
-						.getSimpleName() + ":" + e.getMessage(),
+				retResp = new URLErrorResponse(url, e.getClass().getSimpleName() + ":" + e.getMessage(),
 						getArgumentsXML());
 			} catch (ParserException e) {
-				retResp = new ICSParseErrorResponse(url, e.getClass()
-						.getSimpleName() + ":" + e.getMessage(),
+				retResp = new ICSParseErrorResponse(url, e.getClass().getSimpleName() + ":" + e.getMessage(),
 						getArgumentsXML());
 			} catch (SQLException e) {
 				retResp = new SqlErrorResponse(sql, e.getMessage(), sqlArgs);
@@ -641,8 +579,7 @@ public class ZimbraCommand extends CommandImpl {
 		return true;
 	}
 
-	private LocTemp getLocation(String zone, double defaultTemp, VEvent event,
-			String locNames) {
+	private LocTemp getLocation(String zone, double defaultTemp, VEvent event, String locNames) {
 		Location loc = event.getLocation();
 		boolean locOk = false;
 		if (loc != null) {
@@ -666,27 +603,4 @@ public class ZimbraCommand extends CommandImpl {
 
 		return null;
 	}
-
-	private String getLocation(VEvent event) {
-		Location loc = event.getLocation();
-		if (loc != null) {
-			String ret = loc.getName();
-			if (!ret.isEmpty()) {
-				return ret;
-			}
-		}
-		// go through properties to see if matches locations
-		PropertyList pl = event.getProperties(Property.RESOURCES);
-		for (Object prop : pl) {
-			if (prop instanceof Property) {
-				Property p = (Property) prop;
-				if (!p.getValue().isEmpty()) {
-					return p.getValue();
-				}
-			}
-		}
-
-		return "";
-	}
-
 }

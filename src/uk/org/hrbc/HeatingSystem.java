@@ -6,7 +6,10 @@ import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -80,8 +83,7 @@ import uk.org.hrbc.debug.DebugItems;
 
 public class HeatingSystem {
 
-	public final static SimpleDateFormat SQL_DATE = new SimpleDateFormat(
-			"yyyy-MM-dd HH:mm:ss");
+	public final static SimpleDateFormat SQL_DATE = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
 	public final static String PARAM_MAILHOST = "MAILHOST";
 	public final static String PARAM_DEBUG = "DEBUG";
@@ -132,6 +134,7 @@ public class HeatingSystem {
 	public final static int SOURCE_ALERT = 2;
 	public final static int SOURCE_COMMAND_LINE = 3;
 	public final static int SOURCE_COMMAND = 4;
+	public final static int SOURCE_ALERT_RECOVER = 5;
 
 	public final static int TYPE_NO_EDIT = 0;
 	public final static int TYPE_USER = 1;
@@ -151,6 +154,7 @@ public class HeatingSystem {
 	private HashMap<String, String> params = null;
 	private DebugItems debugItems;
 	private XPath xpath = null;
+	private long zoneFileReadAt = 0;
 
 	public HeatingSystem(String[] args) {
 
@@ -175,8 +179,7 @@ public class HeatingSystem {
 					if (args.length > arg + 2) {
 						arguments = args[arg + 2];
 					}
-					CommandResponse cr = executeCommand(command,
-							arguments.replace("'", "\""), COMPLETE_INSTANTLY);
+					CommandResponse cr = executeCommand(command, arguments.replace("'", "\""), COMPLETE_INSTANTLY);
 					System.out.println(cr.getMessage());
 					break;
 				} else if (args[arg].equalsIgnoreCase("-t")) {
@@ -188,14 +191,10 @@ public class HeatingSystem {
 				}
 			}
 		} else {
-			System.out
-					.println("Usage: HeatingSystem [-s | -c command [args] | -t]");
-			System.out
-					.println("       -s                Start as a background application");
-			System.out
-					.println("       -c command [args] Run command with optional XML arguments");
-			System.out
-					.println("       -t                Test if the Heating System monitor is running");
+			System.out.println("Usage: HeatingSystem [-s | -c command [args] | -t]");
+			System.out.println("       -s                Start as a background application");
+			System.out.println("       -c command [args] Run command with optional XML arguments");
+			System.out.println("       -t                Test if the Heating System monitor is running");
 		}
 
 		if (start) {
@@ -228,13 +227,11 @@ public class HeatingSystem {
 		new HeatingSystem(args);
 	}
 
-	public String sendMessage(String key, String message, boolean lf)
-			throws IOException {
+	public String sendMessage(String key, String message, boolean lf) throws IOException {
 		return getComms().sendMessage(key, message, lf);
 	}
 
-	public String sendMessageEx(String key, String message, boolean lf)
-			throws IOException {
+	public String sendMessageEx(String key, String message, boolean lf) throws IOException {
 		return getComms().sendMessageEx(key, message, lf);
 	}
 
@@ -242,8 +239,7 @@ public class HeatingSystem {
 		return getComms().sendMessage(message, lf, command);
 	}
 
-	public String receiveMessage(String key) throws CommsTimeoutException,
-			CommsResendException {
+	public String receiveMessage(String key) throws CommsTimeoutException, CommsResendException {
 		return getComms().receiveMessage(key);
 	}
 
@@ -294,20 +290,17 @@ public class HeatingSystem {
 					Date execTime = new Date();
 					HashMap<Integer, Integer> polls = new HashMap<Integer, Integer>();
 					if (completeState == COMPLETE_WHEN_POSSIBLE) {
-						rs = query1
-								.executeQuery("SELECT PollId, tblpoll.GroupId, Frequency, InXML, NextPoll, EndTime FROM tblpoll WHERE NextPoll < "
-										+ System.currentTimeMillis()
-										+ " AND Active = 1");
+						registerZonesParam(query2);
+						rs = query1.executeQuery(
+								"SELECT PollId, tblpoll.GroupId, Frequency, InXML, NextPoll, EndTime, Source FROM tblpoll WHERE NextPoll < "
+										+ System.currentTimeMillis() + " AND Active = 1");
 						while (rs.next()) {
-							int cmd = pendCommand(query2, rs.getInt(2),
-									SOURCE_POLL, rs.getString(4), false);
+							int cmd = pendCommand(query2, rs.getInt(2), rs.getInt(7), rs.getString(4), false);
 							polls.put(cmd, rs.getInt(1));
 							long nextPoll = rs.getLong(5) + rs.getLong(3);
 							if (nextPoll < System.currentTimeMillis()) {
-								long diff = System.currentTimeMillis()
-										- nextPoll;
-								diff = ((long) (diff / rs.getLong(3)) + 1)
-										* rs.getLong(3);
+								long diff = System.currentTimeMillis() - nextPoll;
+								diff = ((long) (diff / rs.getLong(3)) + 1) * rs.getLong(3);
 								nextPoll += diff;
 							}
 
@@ -315,19 +308,17 @@ public class HeatingSystem {
 							if (rs.getDate(6) != null)
 								if (rs.getDate(6).before(new Date(nextPoll)))
 									extraSql = ", Active=0";
-							query2.executeUpdate("UPDATE tblpoll SET NextPoll="
-									+ nextPoll + extraSql + " WHERE PollId="
+							query2.executeUpdate("UPDATE tblpoll SET NextPoll=" + nextPoll + extraSql + " WHERE PollId="
 									+ rs.getInt(1));
 						}
 					}
 					String where = "WHERE Completed=" + completeState;
-					if (completeState == COMPLETE_WHEN_POSSIBLE)
+					if (completeState == COMPLETE_WHEN_POSSIBLE) {
 						where += " OR Completed=" + COMPLETED_BUT_REEXECUTE;
-
-					rs = query1
-							.executeQuery("SELECT PendingId, tblcommand.CommandId, tblpending.InXML, InTimestamp, Source, Class, Mode, tblcommandgroupx.GroupId, Completed FROM tblpending LEFT JOIN tblcommandgroupx ON tblpending.GroupId=tblcommandgroupx.GroupId INNER JOIN tblcommand on tblcommand.CommandId=tblcommandgroupx.CommandId "
-									+ where
-									+ " ORDER BY PendingId, tblcommandgroupx.GroupId, tblcommandgroupx.Order");
+					}
+					rs = query1.executeQuery(
+							"SELECT PendingId, tblcommand.CommandId, tblpending.InXML, InTimestamp, Source, Class, Mode, tblcommandgroupx.GroupId, Completed FROM tblpending LEFT JOIN tblcommandgroupx ON tblpending.GroupId=tblcommandgroupx.GroupId INNER JOIN tblcommand on tblcommand.CommandId=tblcommandgroupx.CommandId "
+									+ where + " ORDER BY PendingId, tblcommandgroupx.GroupId, tblcommandgroupx.Order");
 					xml = "";
 					pending = -1;
 					groupId = -1;
@@ -344,25 +335,22 @@ public class HeatingSystem {
 					while (rs.next()) {
 						if (pending != rs.getInt(1)) {
 							if (pending != -1)
-								alert |= completeCommand(query2, pending,
-										groupId, xml, execTime, source, debug,
+								alert |= completeCommand(query2, pending, groupId, xml, execTime, source, debug,
 										toComplete);
 							pending = rs.getInt(1);
 							groupId = rs.getInt(8);
 							source = rs.getInt(5);
 							debug = "";
 						}
-						response = executeCommand(rs.getString(6),
-								rs.getString(3), completeState);
+						response = executeCommand(rs.getString(6), rs.getString(3), completeState);
 
-						if (response == null)
-							response = new NullResponseResponse(
-									rs.getString(6), rs.getString(3));
+						if (response == null) {
+							response = new NullResponseResponse(rs.getString(6), rs.getString(3));
+						}
 
 						if (response.isAutoPollStop()) {
 							if (polls.containsKey(pending)) {
-								executeQuery("UPDATE tblpoll SET Active=0 WHERE PollId="
-										+ polls.get(pending));
+								executeQuery("UPDATE tblpoll SET Active=0 WHERE PollId=" + polls.get(pending));
 							}
 						}
 
@@ -395,18 +383,15 @@ public class HeatingSystem {
 								debugItems = new DebugItems(this);
 							}
 							xml += response.getMessage();
-							writeMessage(query2, response.getMessage(),
-									response.getStatus(), rs.getInt(1),
-									rs.getInt(2), response.getArgs(),
-									rs.getTimestamp(4), execTime, rs.getInt(5),
-									rs.getString(7), response.isData(),
-									rs.getInt(9) == COMPLETED_BUT_REEXECUTE,
+							writeMessage(query2, response.getMessage(), response.getStatus(), rs.getInt(1),
+									rs.getInt(2), response.getArgs(), rs.getTimestamp(4), execTime, rs.getInt(5),
+									rs.getString(7), response.isData(), rs.getInt(9) == COMPLETED_BUT_REEXECUTE,
 									"Thread " + Integer.toString(completeState));
 						}
 					}
-					if (pending != -1)
-						alert |= completeCommand(query2, pending, groupId, xml,
-								execTime, source, debug, toComplete);
+					if (pending != -1) {
+						alert |= completeCommand(query2, pending, groupId, xml, execTime, source, debug, toComplete);
+					}
 				} catch (SQLException e1) {
 					e1.printStackTrace();
 				}
@@ -446,13 +431,10 @@ public class HeatingSystem {
 			ret += "<weekday>" + time.get(Calendar.DAY_OF_WEEK) + "</weekday>";
 			ret += "<hour>" + time.get(Calendar.HOUR_OF_DAY) + "</hour>";
 			ret += "<minute>" + time.get(Calendar.MINUTE) + "</minute>";
-			ret += "<time>"
-					+ String.format("%1$02d%1$02d",
-							time.get(Calendar.HOUR_OF_DAY),
-							time.get(Calendar.MINUTE)) + "</time>";
+			ret += "<time>" + String.format("%1$02d%1$02d", time.get(Calendar.HOUR_OF_DAY), time.get(Calendar.MINUTE))
+					+ "</time>";
 			ret += "<second>" + time.get(Calendar.SECOND) + "</second>";
-			ret += "<millisecond>" + time.get(Calendar.MILLISECOND)
-					+ "</millisecond>";
+			ret += "<millisecond>" + time.get(Calendar.MILLISECOND) + "</millisecond>";
 		}
 		ret += "</" + tag + ">";
 		return ret;
@@ -467,8 +449,7 @@ public class HeatingSystem {
 		return "";
 	}
 
-	private CommandResponse executeCommand(String command, String argXml,
-			int completeState) {
+	private CommandResponse executeCommand(String command, String argXml, int completeState) {
 		CommandResponse response = null;
 		Class<?> clazz;
 		Command cmd = null;
@@ -486,19 +467,16 @@ public class HeatingSystem {
 			response = new ClassErrorResponse(command, e.getMessage());
 		} catch (Exception e) {
 			if (cmd == null)
-				response = new GeneralExceptionResponse(command,
-						e.getMessage(), argXml);
+				response = new GeneralExceptionResponse(command, e.getMessage(), argXml);
 			else
-				response = new GeneralExceptionResponse(command,
-						e.getMessage(), cmd.getArgumentsXML());
+				response = new GeneralExceptionResponse(command, e.getMessage(), cmd.getArgumentsXML());
 		}
 		return response;
 	}
 
 	private Connection getConnection() throws SQLException {
 		if (con == null) {
-			con = DriverManager.getConnection("jdbc:mysql:///heating",
-					"heating", "toohottoocold");
+			con = DriverManager.getConnection("jdbc:mysql:///heating", "heating", "toohottoocold");
 			registerParams();
 			registerCommands();
 			registerGlobalConditions();
@@ -518,33 +496,23 @@ public class HeatingSystem {
 		return comms;
 	}
 
-	public int pendCommand(Class<? extends Command> cmd, String mode,
-			String args, boolean key) throws SQLException {
+	public int pendCommand(Class<? extends Command> cmd, String mode, String args, boolean key) throws SQLException {
 		Statement query = getConnection().createStatement();
 		ResultSet rs = query
-				.executeQuery("SELECT CommandId FROM tblcommand WHERE Class='"
-						+ cmd.getCanonicalName() + "'");
+				.executeQuery("SELECT CommandId FROM tblcommand WHERE Class='" + cmd.getCanonicalName() + "'");
 		if (rs.next()) {
-			rs = query
-					.executeQuery("SELECT GroupId FROM tblcommandgroupx WHERE CommandId="
-							+ rs.getInt(1) + " AND Mode='" + mode + "'");
+			rs = query.executeQuery("SELECT GroupId FROM tblcommandgroupx WHERE CommandId=" + rs.getInt(1)
+					+ " AND Mode='" + mode + "'");
 			if (rs.next()) {
-				return pendCommand(query, rs.getInt(1), SOURCE_COMMAND, args,
-						key);
+				return pendCommand(query, rs.getInt(1), SOURCE_COMMAND, args, key);
 			}
 		}
 		return -1;
 	}
 
-	private int pendCommand(Statement query, int cmdGroup, int src,
-			String args, boolean key) throws SQLException {
-		String sql = "INSERT INTO tblpending(GroupId, InTimestamp, Source, InXML, Completed) VALUES("
-				+ cmdGroup
-				+ ",\'"
-				+ SQL_DATE.format(new Date())
-				+ "\',"
-				+ src
-				+ ",\'" + args + "\', 0)";
+	private int pendCommand(Statement query, int cmdGroup, int src, String args, boolean key) throws SQLException {
+		String sql = "INSERT INTO tblpending(GroupId, InTimestamp, Source, InXML, Completed) VALUES(" + cmdGroup + ",\'"
+				+ SQL_DATE.format(new Date()) + "\'," + src + ",\'" + args + "\', 0)";
 		if (key) {
 			ResultSet id;
 			query.executeUpdate(sql, Statement.RETURN_GENERATED_KEYS);
@@ -563,8 +531,7 @@ public class HeatingSystem {
 		try {
 			ArrayList<Command> commands = new ArrayList<Command>();
 			Vector<String> classes = new Vector<String>();
-			classes.add(ActualRequiredTemperatureCommand.class
-					.getCanonicalName());
+			classes.add(ActualRequiredTemperatureCommand.class.getCanonicalName());
 			classes.add(AggregatedLeadTimesCommand.class.getCanonicalName());
 			classes.add(AlertCommand.class.getCanonicalName());
 			classes.add(AlertsCommand.class.getCanonicalName());
@@ -606,8 +573,7 @@ public class HeatingSystem {
 
 			for (String clazz : classes) {
 				Class<?> c = Class.forName(clazz);
-				if (!Modifier.isAbstract(c.getModifiers())
-						& !Modifier.isInterface(c.getModifiers())
+				if (!Modifier.isAbstract(c.getModifiers()) & !Modifier.isInterface(c.getModifiers())
 						& Command.class.isAssignableFrom(c)) {
 					Command cmd = (Command) c.newInstance();
 					commands.add(cmd);
@@ -615,15 +581,12 @@ public class HeatingSystem {
 			}
 
 			for (Command cmd : commands) {
-				rs = query
-						.executeQuery("SELECT CommandId FROM tblcommand WHERE Class='"
-								+ cmd.getClass().getCanonicalName() + "'");
+				rs = query.executeQuery(
+						"SELECT CommandId FROM tblcommand WHERE Class='" + cmd.getClass().getCanonicalName() + "'");
 				if (!rs.next()) {
 					rs.close();
-					query.executeUpdate(
-							"INSERT INTO tblcommand(Class, Pollable) VALUES('"
-									+ cmd.getClass().getCanonicalName() + "',"
-									+ cmd.isPollable() + ")",
+					query.executeUpdate("INSERT INTO tblcommand(Class, Pollable) VALUES('"
+							+ cmd.getClass().getCanonicalName() + "'," + cmd.isPollable() + ")",
 							Statement.RETURN_GENERATED_KEYS);
 					key = query.getGeneratedKeys();
 					key.next();
@@ -632,73 +595,48 @@ public class HeatingSystem {
 
 				for (String mode : cmd.getModes()) {
 					grpId = -1;
-					rs = query2
-							.executeQuery("SELECT GroupId FROM tblcommandgroupx WHERE CommandId="
-									+ key.getInt(1)
-									+ " AND Mode='"
-									+ mode
-									+ "'");
+					rs = query2.executeQuery("SELECT GroupId FROM tblcommandgroupx WHERE CommandId=" + key.getInt(1)
+							+ " AND Mode='" + mode + "'");
 					if (!rs.next()) {
-						query2.executeUpdate(
-								"INSERT INTO tblcommandgroup(Description, Pollable, Type, Access) VALUES('"
-										+ cmd.getDescription(mode)
-										+ "',"
-										+ ((cmd.isPollable() & mode
-												.equalsIgnoreCase(MODE_DEFAULT)) ? 1
-												: 0) + "," + TYPE_NO_EDIT + ","
-										+ cmd.getAccess() + ")",
-								Statement.RETURN_GENERATED_KEYS);
+						query2.executeUpdate("INSERT INTO tblcommandgroup(Description, Pollable, Type, Access) VALUES('"
+								+ cmd.getDescription(mode) + "',"
+								+ ((cmd.isPollable() & mode.equalsIgnoreCase(MODE_DEFAULT)) ? 1 : 0) + ","
+								+ TYPE_NO_EDIT + "," + cmd.getAccess() + ")", Statement.RETURN_GENERATED_KEYS);
 						ResultSet grp = query2.getGeneratedKeys();
 						if (grp.next()) {
 							grpId = grp.getInt(1);
 							query3.executeUpdate(
-									"INSERT INTO tblcommandgroupx(GroupId, `Order`, CommandId, Mode) VALUES("
-											+ grpId + ",1," + key.getInt(1)
-											+ ",'" + mode + "')",
+									"INSERT INTO tblcommandgroupx(GroupId, `Order`, CommandId, Mode) VALUES(" + grpId
+											+ ",1," + key.getInt(1) + ",'" + mode + "')",
 									Statement.RETURN_GENERATED_KEYS);
 						}
 					} else
 						grpId = rs.getInt(1);
 
 					if (grpId != -1) {
-						if ((cmd instanceof CommandsCommand)
-								&& (mode.equalsIgnoreCase(MODE_DEFAULT)))
-							registerParam(query3, PARAM_HOME,
-									Integer.toString(grpId), true, "Home",
+						if ((cmd instanceof CommandsCommand) && (mode.equalsIgnoreCase(MODE_DEFAULT)))
+							registerParam(query3, PARAM_HOME, Integer.toString(grpId), true, "Home", false);
+						else if ((cmd instanceof PollCommand) && (mode.equalsIgnoreCase(MODE_EDIT)))
+							registerParam(query3, PARAM_POLLEDIT, Integer.toString(grpId), true, "Poll editor command",
 									false);
-						else if ((cmd instanceof PollCommand)
-								&& (mode.equalsIgnoreCase(MODE_EDIT)))
-							registerParam(query3, PARAM_POLLEDIT,
-									Integer.toString(grpId), true,
-									"Poll editor command", false);
-						else if ((cmd instanceof AlertCommand)
-								&& (mode.equalsIgnoreCase(MODE_EDIT)))
-							registerParam(query3, PARAM_ALERTEDIT,
-									Integer.toString(grpId), true,
+						else if ((cmd instanceof AlertCommand) && (mode.equalsIgnoreCase(MODE_EDIT)))
+							registerParam(query3, PARAM_ALERTEDIT, Integer.toString(grpId), true,
 									"Alert editor command", false);
-						else if ((cmd instanceof ConditionCommand)
-								&& (mode.equalsIgnoreCase(MODE_EDIT)))
-							registerParam(query3, PARAM_CONDEDIT,
-									Integer.toString(grpId), true,
+						else if ((cmd instanceof ConditionCommand) && (mode.equalsIgnoreCase(MODE_EDIT)))
+							registerParam(query3, PARAM_CONDEDIT, Integer.toString(grpId), true,
 									"Command editor command", false);
-						else if ((cmd instanceof CommandCommand)
-								&& (mode.equalsIgnoreCase(MODE_EDIT)))
-							registerParam(query3, PARAM_CMDEDIT,
-									Integer.toString(grpId), true,
+						else if ((cmd instanceof CommandCommand) && (mode.equalsIgnoreCase(MODE_EDIT)))
+							registerParam(query3, PARAM_CMDEDIT, Integer.toString(grpId), true,
 									"Condition editor command", false);
-						else if ((cmd instanceof ConfigurationCommand)
-								&& (mode.equalsIgnoreCase(MODE_EDIT)))
-							registerParam(query3, PARAM_CONFIG,
-									Integer.toString(grpId), true,
+						else if ((cmd instanceof ConfigurationCommand) && (mode.equalsIgnoreCase(MODE_EDIT)))
+							registerParam(query3, PARAM_CONFIG, Integer.toString(grpId), true,
 									"Configuration editor command", false);
 						else if ((cmd instanceof DebugCommand))
-							registerParam(query3, PARAM_DEBUG_CMD,
-									Integer.toString(grpId), true,
+							registerParam(query3, PARAM_DEBUG_CMD, Integer.toString(grpId), true,
 									"Debug output command", false);
 						else if ((cmd instanceof ReportCommand))
-							registerParam(query3, PARAM_REPORTS_CMD,
-									Integer.toString(grpId), true,
-									"Report command", false);
+							registerParam(query3, PARAM_REPORTS_CMD, Integer.toString(grpId), true, "Report command",
+									false);
 					}
 				}
 				Hashtable<String, String> conds = cmd.getConditions(this);
@@ -728,94 +666,45 @@ public class HeatingSystem {
 		try {
 			params = new HashMap<String, String>();
 			Statement query = getConnection().createStatement();
-			registerParam(query, PARAM_MAILHOST, "localhost", false,
-					"Mail server host name", true);
+			registerParam(query, PARAM_MAILHOST, "localhost", false, "Mail server host name", true);
 			registerParam(query, PARAM_DEBUG, "0", false, "Debug level", true);
-			registerParam(query, PARAM_POLLING, "1000", false,
-					"Polling interval in milliseconds", true);
-			registerParam(query, PARAM_TIMEOUT, "10000", false,
-					"Web interface timeout in milliseconds", true);
-			registerParam(query, PARAM_COMM_TIMEOUT, "1000", false,
-					"Comms timeout in milliseconds", true);
-			registerParam(
-					query,
-					PARAM_REALERT,
-					"3600000",
-					false,
-					"Interval after which an alert can be triggered again in milliseconds",
-					true);
-			registerParam(query, PARAM_ALERTEMAIL, "heatingalert@hrbc.org.uk",
-					false, "Recipient of heating system alert emails", true);
-			registerParam(query, PARAM_PORT, "/dev/ttyS0", false,
-					"Serial port name or ethernet port number", true);
-			registerParam(query, PARAM_IP, "192.168.124.160", false,
-					"Ethernet IP address of heating controller", true);
-			registerParam(query, PARAM_SYSTEMTAG, "heating", false,
-					"Root XML for data", false);
+			registerParam(query, PARAM_POLLING, "1000", false, "Polling interval in milliseconds", true);
+			registerParam(query, PARAM_TIMEOUT, "10000", false, "Web interface timeout in milliseconds", true);
+			registerParam(query, PARAM_COMM_TIMEOUT, "1000", false, "Comms timeout in milliseconds", true);
+			registerParam(query, PARAM_REALERT, "3600000", false,
+					"Interval after which an alert can be triggered again in milliseconds", true);
+			registerParam(query, PARAM_ALERTEMAIL, "heatingalert@hrbc.org.uk", false,
+					"Recipient of heating system alert emails", true);
+			registerParam(query, PARAM_PORT, "/dev/ttyS0", false, "Serial port name or ethernet port number", true);
+			registerParam(query, PARAM_IP, "192.168.124.160", false, "Ethernet IP address of heating controller", true);
+			registerParam(query, PARAM_SYSTEMTAG, "heating", false, "Root XML for data", false);
 
-			String zoneStr;
-			try {
-				zoneStr = new String(
-						Files.readAllBytes(Paths.get("zones.xml")),
-						Charset.defaultCharset());
-				zoneStr = zoneStr.trim().replace("\n", "");
-				zoneStr = zoneStr.replace("\t", "");
-				zoneStr = zoneStr.replace("\r", "");
-				registerParam(query, PARAM_ZONES, zoneStr, true,
-						"Zones description", false);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-			registerParam(query, PARAM_DEFAULTZONE, "z1", false,
-					"Default zone", true);
-			registerParam(query, PARAM_DEFAULTCONT, "h1", false,
-					"Default controller", true);
-			registerParam(query, PARAM_DEFAULTSUBCONT, "h2", false,
-					"Default subcontroller", true);
-			registerParam(query, PARAM_RETRIES, "3", false,
-					"Comms retry attempts", true);
-			registerParam(query, PARAM_LOGGINGOFFSET, "-1", false,
-					"Data offset for logging", false);
-			registerParam(
-					query,
-					PARAM_LOGGINGINTERVAL,
-					"3600000",
-					false,
-					"Current lead time logging time sample interval in milliseconds",
-					true);
-			registerParam(
-					query,
-					PARAM_HOUSEKEEPING_NON_DATA,
-					"86400000",
-					false,
-					"Amount of time of non-data history to keep in milliseconds",
-					true);
-			registerParam(query, PARAM_HOUSEKEEPING_DATA, "864000000000",
-					false,
-					"Amount of time of data history to keep in milliseconds",
-					true);
-			registerParam(
-					query,
-					PARAM_METURL,
+			registerZonesParam(query);
+			registerParam(query, PARAM_DEFAULTZONE, "z1", false, "Default zone", true);
+			registerParam(query, PARAM_DEFAULTCONT, "h1", false, "Default controller", true);
+			registerParam(query, PARAM_DEFAULTSUBCONT, "h2", false, "Default subcontroller", true);
+			registerParam(query, PARAM_RETRIES, "3", false, "Comms retry attempts", true);
+			registerParam(query, PARAM_LOGGINGOFFSET, "-1", false, "Data offset for logging", false);
+			registerParam(query, PARAM_LOGGINGINTERVAL, "3600000", false,
+					"Current lead time logging time sample interval in milliseconds", true);
+			registerParam(query, PARAM_HOUSEKEEPING_NON_DATA, "86400000", false,
+					"Amount of time of non-data history to keep in milliseconds", true);
+			registerParam(query, PARAM_HOUSEKEEPING_DATA, "864000000000", false,
+					"Amount of time of data history to keep in milliseconds", true);
+			registerParam(query, PARAM_METURL,
 					"http://datapoint.metoffice.gov.uk/public/data/val/wxfcs/all/xml/310091?res=3hourly&key=a400136c-cf6d-492b-86cf-714e142c5494",
 					false, "Met Office URL for weather forecasts", true);
-			registerParam(query, PARAM_WEATHER, "<weather />", false,
-					"Abridged weather data", false);
-			registerParam(query, PARAM_ZIMBRA,
-					"http://zimbra/home/church/calendar?auth=ba&fmt=ics",
-					false, "Zimbra URL", true);
-			registerParam(query, PARAM_ZIMBRA2,
-					"http://zimbra/home/office/calendar?auth=ba&fmt=ics",
-					false, "Zimbra 2nd URL", true);
-			registerParam(query, PARAM_ACTIVE_DATASET, "1", false,
-					"Active Dataset Number", true);
-			registerParam(query, PARAM_OUTSIDE_TEMP, "0", false,
-					"Current Outside Temp", false);
-			registerParam(query, PARAM_TEMPTOL, "0.5", false,
-					"Tolerance below required temperature to trigger error",
+			registerParam(query, PARAM_WEATHER, "<weather />", false, "Abridged weather data", false);
+			registerParam(query, PARAM_ZIMBRA, "http://zimbra/home/church/calendar?auth=ba&fmt=ics", false,
+					"Zimbra URL", true);
+			registerParam(query, PARAM_ZIMBRA2, "http://zimbra/home/office/calendar?auth=ba&fmt=ics", false,
+					"Zimbra 2nd URL", true);
+			registerParam(query, PARAM_ACTIVE_DATASET, "1", false, "Active Dataset Number", true);
+			registerParam(query, PARAM_OUTSIDE_TEMP, "0", false, "Current Outside Temp", false);
+			registerParam(query, PARAM_TEMPTOL, "0.5", false, "Tolerance below required temperature to trigger error",
 					true);
-			registerParam(query, PARAM_AGGREGATED_DATASET, "100000001", false,
-					"Data set number for aggregated data", true);
+			registerParam(query, PARAM_AGGREGATED_DATASET, "100000001", false, "Data set number for aggregated data",
+					true);
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
@@ -825,10 +714,8 @@ public class HeatingSystem {
 		Document zonesList;
 		try {
 			String z = getParam(PARAM_ZONES);
-			zonesList = getXMLFactory().newDocumentBuilder().parse(
-					new ByteArrayInputStream(z.getBytes("UTF-8")));
-			String ins = (String) getXPath().evaluate(
-					"/zones/zone[name='" + zone + "']/locations", zonesList,
+			zonesList = getXMLFactory().newDocumentBuilder().parse(new ByteArrayInputStream(z.getBytes("UTF-8")));
+			String ins = (String) getXPath().evaluate("/zones/zone[name='" + zone + "']/locations", zonesList,
 					XPathConstants.STRING);
 			if (ins != null) {
 				return ins;
@@ -847,49 +734,59 @@ public class HeatingSystem {
 		try {
 			return Double.parseDouble(getZoneProperty(zone, "defaultTemp"));
 		} catch (NumberFormatException ex) {
-			return 19.0;
+			return 20.0;
 		}
 	}
 
 	public void setParam(String name, String value) {
 		try {
-			executeQuery("UPDATE tblconfig SET Value='" + value
-					+ "' WHERE Param='" + name + "'");
+			executeQuery("UPDATE tblconfig SET Value='" + value + "' WHERE Param='" + name + "'");
 			params.put(name, value);
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
 	}
 
-	private void registerParam(Statement query, String name, String value,
-			boolean force, String desc, boolean modifiable) throws SQLException {
-		ResultSet rs = query
-				.executeQuery("SELECT ConfigId,Value FROM tblconfig WHERE Param='"
-						+ name + "'");
+	private void registerZonesParam(Statement query) throws SQLException {
+		String zoneStr;
+
+		try {
+			Path file = Paths.get("zones.xml");
+			FileTime time = Files.getLastModifiedTime(file, LinkOption.NOFOLLOW_LINKS);
+
+			if (zoneFileReadAt == 0 || zoneFileReadAt < time.toMillis()) {
+				zoneStr = new String(Files.readAllBytes(file), Charset.defaultCharset());
+				zoneStr = zoneStr.trim().replace("\n", "");
+				zoneStr = zoneStr.replace("\t", "");
+				zoneStr = zoneStr.replace("\r", "");
+				registerParam(query, PARAM_ZONES, zoneStr, true, "Zones description", false);
+				zoneFileReadAt = System.currentTimeMillis();
+				System.out.println("Read in zones.xml");
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void registerParam(Statement query, String name, String value, boolean force, String desc,
+			boolean modifiable) throws SQLException {
+		ResultSet rs = query.executeQuery("SELECT ConfigId,Value FROM tblconfig WHERE Param='" + name + "'");
 		if (!rs.next()) {
 			rs.close();
-			query.executeUpdate("INSERT INTO tblconfig(Param, Value, Description, Modifiable) VALUES('"
-					+ name
-					+ "','"
-					+ value
-					+ "','"
-					+ desc
-					+ "',"
-					+ (modifiable ? "1" : "0") + ")");
+			query.executeUpdate("INSERT INTO tblconfig(Param, Value, Description, Modifiable) VALUES('" + name + "','"
+					+ value + "','" + desc + "'," + (modifiable ? "1" : "0") + ")");
 			params.put(name, value);
 		} else if (force) {
 			rs.close();
-			query.executeUpdate("UPDATE tblconfig SET Value='" + value
-					+ "' WHERE Param='" + name + "'");
+			query.executeUpdate("UPDATE tblconfig SET Value='" + value + "' WHERE Param='" + name + "'");
 			params.put(name, value);
 		} else {
 			params.put(name, rs.getString(2));
 		}
 	}
 
-	private boolean completeCommand(Statement query, int pending, int groupId,
-			String response, Date execTime, int source, String debug,
-			int toComplete) throws SQLException {
+	private boolean completeCommand(Statement query, int pending, int groupId, String response, Date execTime,
+			int source, String debug, int toComplete) throws SQLException {
 		ResultSet alerts;
 		int alertId = -1;
 		boolean raiseAlert = true;
@@ -897,41 +794,37 @@ public class HeatingSystem {
 		String alertArgs = "<args />";
 
 		if (toComplete == COMPLETED) {
-			alerts = query
-					.executeQuery("SELECT AlertId, XPath, AlertCommandGroupId, InXML, LastExec FROM tblalert INNER JOIN tblconditiongroupx ON tblalert.ConditionGroupId=tblconditiongroupx.ConditionGroupId INNER JOIN tblcondition ON tblconditiongroupx.ConditionId=tblcondition.ConditionId WHERE GroupId="
-							+ groupId
-							+ " AND Source="
-							+ source
-							+ " ORDER BY AlertId");
+			alerts = query.executeQuery(
+					"SELECT AlertId, XPath, AlertCommandGroupId, InXML, LastExec, RecoverGroupId, RecoverInXML, RecoverDelay, RecoverPoll FROM tblalert INNER JOIN tblconditiongroupx ON tblalert.ConditionGroupId=tblconditiongroupx.ConditionGroupId INNER JOIN tblcondition ON tblconditiongroupx.ConditionId=tblcondition.ConditionId WHERE GroupId="
+							+ groupId + " AND Source=" + source + " ORDER BY AlertId");
 			while (alerts.next()) {
 				try {
 					if (alertId != alerts.getInt(1)) {
 						if ((alertId != -1) && raiseAlert) {
-							pendCommand(query, alertCommand, SOURCE_ALERT,
-									alertArgs, false);
-							updateAlert(alertId);
+							pendCommand(query, alertCommand, SOURCE_ALERT, alertArgs, false);
+						}
+						if (alertId != -1) {
+							updateAlert(query, alertId, raiseAlert, System.currentTimeMillis(), alerts.getInt(8),
+									alerts.getInt(6), alerts.getString(7), alerts.getInt(9));
 						}
 						alertId = alerts.getInt(1);
 						raiseAlert = true;
 						alertCommand = alerts.getInt(3);
 						alertArgs = alerts.getString(4);
 					}
-					if (alerts.getLong(5)
-							+ Long.parseLong(getParam(PARAM_REALERT)) <= System
-								.currentTimeMillis()) {
-						String xml = ("<" + getParam(PARAM_SYSTEMTAG) + ">"
-								+ getTimeXML(execTime, "timestamp") + response
-								+ "</" + getParam(PARAM_SYSTEMTAG) + ">");
-						Document resp = getXMLFactory().newDocumentBuilder()
-								.parse(new ByteArrayInputStream(xml
-										.getBytes("UTF-8")));
-						String cond = alerts.getString(2);
-						boolean nl = (Boolean) getXPath().evaluate(cond, resp,
-								XPathConstants.BOOLEAN);
-						if (!nl)
+					if (raiseAlert) {
+						if (alerts.getLong(5) + Long.parseLong(getParam(PARAM_REALERT)) <= System.currentTimeMillis()) {
+							String xml = "<" + getParam(PARAM_SYSTEMTAG) + ">" + getTimeXML(execTime, "timestamp")
+									+ response + "</" + getParam(PARAM_SYSTEMTAG) + ">";
+							Document resp = getXMLFactory().newDocumentBuilder()
+									.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
+							String cond = alerts.getString(2);
+							boolean nl = (Boolean) getXPath().evaluate(cond, resp, XPathConstants.BOOLEAN);
+							if (!nl)
+								raiseAlert = false;
+						} else
 							raiseAlert = false;
-					} else
-						raiseAlert = false;
+					}
 				} catch (XPathExpressionException e) {
 					e.printStackTrace();
 				} catch (UnsupportedEncodingException e) {
@@ -946,40 +839,58 @@ public class HeatingSystem {
 			}
 			if ((alertId != -1) && raiseAlert) {
 				pendCommand(query, alertCommand, SOURCE_ALERT, alertArgs, false);
-				updateAlert(alertId);
-			} else
+			} else {
 				raiseAlert = false;
+			}
+			if (alertId != -1) {
+				updateAlert(query, alertId, raiseAlert, System.currentTimeMillis(), alerts.getInt(8), alerts.getInt(6),
+						alerts.getString(7), alerts.getInt(9));
+			}
 		}
-		query.executeUpdate("UPDATE tblpending SET Completed=" + toComplete
-				+ " WHERE PendingId=" + pending);
+		query.executeUpdate("UPDATE tblpending SET Completed=" + toComplete + " WHERE PendingId=" + pending);
 		if (toComplete == COMPLETED && debug.length() > 0) {
-			writeMessage(query, "<debugs>" + debug + "</debugs>",
-					CommandResponse.SUCCESS, pending,
-					Integer.parseInt(getParam(PARAM_DEBUG_CMD)), "<args />",
-					new Date(), execTime, source, MODE_DEFAULT, false, false,
-					"debug");
+			writeMessage(query, "<debugs>" + debug + "</debugs>", CommandResponse.SUCCESS, pending,
+					Integer.parseInt(getParam(PARAM_DEBUG_CMD)), "<args />", new Date(), execTime, source, MODE_DEFAULT,
+					false, false, "debug");
 		}
 		return raiseAlert;
 	}
 
-	private void updateAlert(int alertId) throws SQLException {
-		Statement update = getConnection().createStatement();
-		update.executeUpdate("UPDATE tblalert SET LastExec="
-				+ System.currentTimeMillis() + " WHERE AlertId=" + alertId);
+	private void updateAlert(Statement query, int alertId, boolean raised, long lastExec, long recoverDelay,
+			int recoverCommand, String recoverArgs, int recoverPoll) throws SQLException {
+		if (raised) {
+			String recoverUpdate = ",RecoverGroupId=";
+			if (recoverCommand == 0) {
+				recoverUpdate += "0,RecoverPoll=0";
+				recoverArgs = "";
+			} else {
+				recoverUpdate += (lastExec + recoverDelay);
+				// Issue recover as poll command
+				query.executeUpdate(
+						"INSERT INTO tblpoll(GroupId,Frequency,NextPoll,StartTime,EndTime,Active,InXML,Source) VALUES ("
+								+ recoverCommand + "," + (recoverDelay * 2) + "," + (lastExec + recoverDelay) + ",'"
+								+ HeatingSystem.SQL_DATE.format(new Date()) + "','"
+								+ HeatingSystem.SQL_DATE
+										.format(new Date(System.currentTimeMillis() + recoverDelay * 2 - 1))
+								+ ",1,'" + recoverArgs + "'," + SOURCE_ALERT_RECOVER + "')",
+						Statement.RETURN_GENERATED_KEYS);
+				recoverUpdate += "0,RecoverPoll=" + query.getGeneratedKeys().getInt(1);
+			}
+			query.executeQuery(
+					"UPDATE tblalert SET LastExec=" + lastExec + recoverUpdate + " WHERE AlertId=" + alertId);
+		} else if (recoverPoll != 0) {
+			query.executeQuery("UPDATE tblpoll SET Active=0 WHERE PollId=" + recoverPoll);
+		}
 	}
 
 	public String getSourcesXML() {
 		String xml = "<sources>";
-		xml += "<source><id>" + SOURCE_COMMAND_LINE
-				+ "</id><description>Command Line</description></source>";
-		xml += "<source><id>" + SOURCE_WEB
-				+ "</id><description>Web Interface</description></source>";
-		xml += "<source><id>" + SOURCE_POLL
-				+ "</id><description>Poll</description></source>";
-		xml += "<source><id>" + SOURCE_ALERT
-				+ "</id><description>Alert</description></source>";
-		xml += "<source><id>" + SOURCE_COMMAND
-				+ "</id><description>Another Command</description></source>";
+		xml += "<source><id>" + SOURCE_COMMAND_LINE + "</id><description>Command Line</description></source>";
+		xml += "<source><id>" + SOURCE_WEB + "</id><description>Web Interface</description></source>";
+		xml += "<source><id>" + SOURCE_POLL + "</id><description>Poll</description></source>";
+		xml += "<source><id>" + SOURCE_ALERT + "</id><description>Alert</description></source>";
+		xml += "<source><id>" + SOURCE_ALERT_RECOVER + "</id><description>Alert Recovery</description></source>";
+		xml += "<source><id>" + SOURCE_COMMAND + "</id><description>Another Command</description></source>";
 		xml += "</sources>";
 		return xml;
 	}
@@ -1001,12 +912,10 @@ public class HeatingSystem {
 
 	public String getZoneFromAlias(String alias) {
 		try {
-			Document zonesList = getXMLFactory().newDocumentBuilder().parse(
-					new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes(
-							"UTF-8")));
-			String ins = (String) getXPath().evaluate(
-					"/zones/zone/aliases[alias='" + alias + "']/../name",
-					zonesList, XPathConstants.STRING);
+			Document zonesList = getXMLFactory().newDocumentBuilder()
+					.parse(new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes("UTF-8")));
+			String ins = (String) getXPath().evaluate("/zones/zone/aliases[alias='" + alias + "']/../name", zonesList,
+					XPathConstants.STRING);
 			return ins;
 		} catch (UnsupportedEncodingException e) {
 			return "";
@@ -1024,15 +933,12 @@ public class HeatingSystem {
 	public int getZoneIndex(String zone) {
 		int ins = -1;
 		try {
-			Document zonesList = getXMLFactory().newDocumentBuilder().parse(
-					new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes(
-							"UTF-8")));
+			Document zonesList = getXMLFactory().newDocumentBuilder()
+					.parse(new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes("UTF-8")));
 			ins = Integer.parseInt((String) getXPath().evaluate(
-					"count(/zones/zone[name='" + zone
-							+ "']/preceding-sibling::*)", zonesList,
-					XPathConstants.STRING));
-		} catch (SAXException | IOException | ParserConfigurationException
-				| NumberFormatException | XPathExpressionException e) {
+					"count(/zones/zone[name='" + zone + "']/preceding-sibling::*)", zonesList, XPathConstants.STRING));
+		} catch (SAXException | IOException | ParserConfigurationException | NumberFormatException
+				| XPathExpressionException e) {
 			e.printStackTrace();
 		}
 		return ins + 1;
@@ -1041,11 +947,9 @@ public class HeatingSystem {
 
 	public String getZoneProperty(String zone, String prop) {
 		try {
-			Document zonesList = getXMLFactory().newDocumentBuilder().parse(
-					new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes(
-							"UTF-8")));
-			String ins = (String) getXPath().evaluate(
-					"/zones/zone[name='" + zone + "']/" + prop, zonesList,
+			Document zonesList = getXMLFactory().newDocumentBuilder()
+					.parse(new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes("UTF-8")));
+			String ins = (String) getXPath().evaluate("/zones/zone[name='" + zone + "']/" + prop, zonesList,
 					XPathConstants.STRING);
 			return ins;
 		} catch (UnsupportedEncodingException e) {
@@ -1064,16 +968,12 @@ public class HeatingSystem {
 	public HashMap<String, String> getZonesMap() {
 		HashMap<String, String> zones = new HashMap<String, String>();
 		try {
-			Document zonesList = getXMLFactory().newDocumentBuilder().parse(
-					new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes(
-							"UTF-8")));
-			NodeList list = (NodeList) getXPath().evaluate("/zones/zone",
-					zonesList, XPathConstants.NODESET);
+			Document zonesList = getXMLFactory().newDocumentBuilder()
+					.parse(new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes("UTF-8")));
+			NodeList list = (NodeList) getXPath().evaluate("/zones/zone", zonesList, XPathConstants.NODESET);
 			for (int node = 0; node < list.getLength(); node++) {
-				String zone = (String) getXPath().evaluate("description",
-						list.item(node), XPathConstants.STRING);
-				String id = (String) getXPath().evaluate("name",
-						list.item(node), XPathConstants.STRING);
+				String zone = (String) getXPath().evaluate("description", list.item(node), XPathConstants.STRING);
+				String id = (String) getXPath().evaluate("name", list.item(node), XPathConstants.STRING);
 				zones.put(id, zone);
 			}
 		} catch (XPathExpressionException e) {
@@ -1088,43 +988,35 @@ public class HeatingSystem {
 		return zones;
 	}
 
-	private void registerCondition(Entry<String, String> cond, Statement query)
-			throws SQLException {
+	private void registerCondition(Entry<String, String> cond, Statement query) throws SQLException {
 		ResultSet rs = query
-				.executeQuery("SELECT ConditionId FROM tblcondition WHERE Description='"
-						+ cond.getKey() + "'");
+				.executeQuery("SELECT ConditionId FROM tblcondition WHERE Description='" + cond.getKey() + "'");
 		if (!rs.next()) {
-			String sText = "INSERT INTO tblcondition(Description,XPath) VALUES(\""
-					+ cond.getKey() + "\",\"" + cond.getValue() + "\")";
+			String sText = "INSERT INTO tblcondition(Description,XPath) VALUES(\"" + cond.getKey() + "\",\""
+					+ cond.getValue() + "\")";
 			query.executeUpdate(sText);
 		}
 	}
 
 	private void registerGlobalConditions() throws SQLException {
 		Statement query = getConnection().createStatement();
-		String[] days = { "Sunday", "Monday", "Tuesday", "Wednesday",
-				"Thursday", "Friday", "Saturday" };
+		String[] days = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 		for (int day = 0; day < 7; day++)
-			registerCondition(new Condition("Day is " + days[day],
-					"/*/timestamp/day = \'" + day + "\'"), query);
+			registerCondition(new Condition("Day is " + days[day], "/*/timestamp/day = \'" + day + "\'"), query);
 		for (int hour = 0; hour < 24; hour++)
-			registerCondition(
-					new Condition("Hour is " + String.format("%1$02d", hour)
-							+ ":00", "/*/timestamp/time = \'"
-							+ String.format("%1$02d", hour) + "00\'"), query);
+			registerCondition(new Condition("Hour is " + String.format("%1$02d", hour) + ":00",
+					"/*/timestamp/time = \'" + String.format("%1$02d", hour) + "00\'"), query);
 		registerCondition(new Condition("General error", "/*/error"), query);
 	}
 
-	private void writeMessage(Statement query2, String msg, int status,
-			int pend, int cmd, String argXML, Date createTime, Date execTime,
-			int src, String mode, boolean data, boolean update, String from)
-			throws SQLException {
+	private void writeMessage(Statement query2, String msg, int status, int pend, int cmd, String argXML,
+			Date createTime, Date execTime, int src, String mode, boolean data, boolean update, String from)
+					throws SQLException {
 		int index = 0;
 		int len = msg.length();
 		int error;
 		do {
-			String message = msg.substring(index,
-					Math.min(index + MAX_RESPONSE_SIZE, len));
+			String message = msg.substring(index, Math.min(index + MAX_RESPONSE_SIZE, len));
 			index += MAX_RESPONSE_SIZE;
 			if (len < index)
 				error = status;
@@ -1134,28 +1026,13 @@ public class HeatingSystem {
 			String sql;
 			if (!update) {
 				sql = "INSERT INTO tblcompleted(PendingId, CommandId, InXML, OutXML, InTimestamp, ExecTimestamp, Source, Success, Mode, Data) VALUES("
-						+ pend
-						+ ","
-						+ cmd
-						+ ",\'"
-						+ argXML
-						+ "\',\'"
-						+ message
-						+ "\',\'"
-						+ SQL_DATE.format(createTime)
-						+ "\',\'"
-						+ SQL_DATE.format(execTime)
-						+ "\',"
-						+ src
-						+ ","
-						+ error
-						+ ",\'" + mode + "\'," + (data ? "1" : "0") + ")";
+						+ pend + "," + cmd + ",\'" + argXML + "\',\'" + message + "\',\'" + SQL_DATE.format(createTime)
+						+ "\',\'" + SQL_DATE.format(execTime) + "\'," + src + "," + error + ",\'" + mode + "\',"
+						+ (data ? "1" : "0") + ")";
 			} else {
-				sql = "UPDATE tblcompleted SET OutXML=" + "\'" + message
-						+ "\',InTimestamp=\'" + SQL_DATE.format(createTime)
-						+ "\',ExecTimestamp=\'" + SQL_DATE.format(execTime)
-						+ "\',Success=" + error + ",Data=" + (data ? "1" : "0")
-						+ " WHERE PendingId=" + pend;
+				sql = "UPDATE tblcompleted SET OutXML=" + "\'" + message + "\',InTimestamp=\'"
+						+ SQL_DATE.format(createTime) + "\',ExecTimestamp=\'" + SQL_DATE.format(execTime)
+						+ "\',Success=" + error + ",Data=" + (data ? "1" : "0") + " WHERE PendingId=" + pend;
 			}
 			query2.executeUpdate(sql);
 		} while (index < len);
@@ -1170,21 +1047,16 @@ public class HeatingSystem {
 			query = getConnection().createStatement();
 			query1 = getConnection().createStatement();
 			query2 = getConnection().createStatement();
-			ResultSet rs = query
-					.executeQuery("SELECT a.GroupId FROM tblcommandgroupx a INNER JOIN tblcommandgroup b ON a.GroupId=b.GroupId AND Mode='"
-							+ MODE_DEFAULT
-							+ "' AND Type="
-							+ TYPE_NO_EDIT
+			ResultSet rs = query.executeQuery(
+					"SELECT a.GroupId FROM tblcommandgroupx a INNER JOIN tblcommandgroup b ON a.GroupId=b.GroupId AND Mode='"
+							+ MODE_DEFAULT + "' AND Type=" + TYPE_NO_EDIT
 							+ " INNER JOIN tblcommand c ON a.CommandId=c.CommandId WHERE Class='"
 							+ SystemCommand.class.getCanonicalName() + "'");
 			if (rs.next()) {
-				int key = pendCommand(query1, rs.getInt(1),
-						SOURCE_COMMAND_LINE,
+				int key = pendCommand(query1, rs.getInt(1), SOURCE_COMMAND_LINE,
 						"<args><arg id=\"status\">status</arg></args>", true);
 				Thread.sleep(Long.parseLong(getParam(PARAM_POLLING)) + 5000);
-				ResultSet rs2 = query2
-						.executeQuery("SELECT Completed FROM tblpending WHERE PendingId="
-								+ key);
+				ResultSet rs2 = query2.executeQuery("SELECT Completed FROM tblpending WHERE PendingId=" + key);
 				if (rs2.next()) {
 					if (rs2.getInt(1) == 0)
 						return false;
@@ -1193,8 +1065,7 @@ public class HeatingSystem {
 				} else
 					return true;
 			} else {
-				System.out
-						.println("System command not registered with database.");
+				System.out.println("System command not registered with database.");
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -1212,8 +1083,7 @@ public class HeatingSystem {
 		return xpath;
 	}
 
-	public double getNextTemp(String zone, double inside, double outside,
-			boolean heating, long interval) {
+	public double getNextTemp(String zone, double inside, double outside, boolean heating, long interval) {
 		int intInside = (int) (inside * 10);
 		int intOutside = (int) (outside * 10);
 		int state = LogLeadTimeCommand.STATE_COOLING;
@@ -1221,10 +1091,8 @@ public class HeatingSystem {
 			state = LogLeadTimeCommand.STATE_WARMING;
 		}
 		String ds = getParam(PARAM_ACTIVE_DATASET);
-		String sql = "SELECT * FROM tblleadtimes WHERE DataGroupId=" + ds
-				+ " AND zone='" + zone + "' AND State=" + state
-				+ " AND InsideTemp=" + intInside + " AND OutsideTemp="
-				+ intOutside;
+		String sql = "SELECT * FROM tblleadtimes WHERE DataGroupId=" + ds + " AND zone='" + zone + "' AND State="
+				+ state + " AND InsideTemp=" + intInside + " AND OutsideTemp=" + intOutside;
 		double ret = 0.0;
 		try {
 			ResultSet rs = executeQuery(sql);
@@ -1244,8 +1112,7 @@ public class HeatingSystem {
 		return inside + ret;
 	}
 
-	public double getTempToReach(String zone, double targetInside,
-			double outside, boolean heating, long interval) {
+	public double getTempToReach(String zone, double targetInside, double outside, boolean heating, long interval) {
 
 		double ret = -1000;
 		double retT = -1000;
@@ -1272,18 +1139,14 @@ public class HeatingSystem {
 		double ret = 0;
 
 		try {
-			ByteArrayInputStream conn = new ByteArrayInputStream(
-					fc.getBytes("UTF-8"));
-			Document forecast = getXMLFactory().newDocumentBuilder()
-					.parse(conn);
-			NodeList nl = (NodeList) getXPath().evaluate(xpath, forecast,
-					XPathConstants.NODESET);
+			ByteArrayInputStream conn = new ByteArrayInputStream(fc.getBytes("UTF-8"));
+			Document forecast = getXMLFactory().newDocumentBuilder().parse(conn);
+			NodeList nl = (NodeList) getXPath().evaluate(xpath, forecast, XPathConstants.NODESET);
 			double beforeTime = -1;
 			double afterTime = -1;
 			double beforeTemp = 0;
 			double afterTemp = 0;
-			double searchTime = time.get(Calendar.HOUR_OF_DAY) * 60
-					+ time.get(Calendar.MINUTE);
+			double searchTime = time.get(Calendar.HOUR_OF_DAY) * 60 + time.get(Calendar.MINUTE);
 			for (int node = 0; node < nl.getLength(); node++) {
 				Node n = nl.item(node);
 				NodeList reps = n.getChildNodes();
@@ -1293,8 +1156,7 @@ public class HeatingSystem {
 					boolean getBefore = false;
 					for (int d = 0; d < rep.getLength(); d++) {
 						if (rep.item(d).getNodeName().equals("time")) {
-							int t = Integer.parseInt(rep.item(d)
-									.getTextContent());
+							int t = Integer.parseInt(rep.item(d).getTextContent());
 							if (t < searchTime) {
 								if (t > beforeTime) {
 									beforeTime = t;
@@ -1312,12 +1174,10 @@ public class HeatingSystem {
 							}
 						} else if (rep.item(d).getNodeName().equals("temp")) {
 							if (getBefore) {
-								beforeTemp = Double.parseDouble(rep.item(d)
-										.getTextContent());
+								beforeTemp = Double.parseDouble(rep.item(d).getTextContent());
 								getBefore = false;
 							} else if (getAfter) {
-								afterTemp = Double.parseDouble(rep.item(d)
-										.getTextContent());
+								afterTemp = Double.parseDouble(rep.item(d).getTextContent());
 								getAfter = false;
 							}
 						}
@@ -1328,9 +1188,7 @@ public class HeatingSystem {
 				} else if (afterTime == -1) {
 					ret = beforeTemp;
 				} else {
-					ret = beforeTemp + (afterTemp - beforeTemp)
-							* (searchTime - beforeTime)
-							/ (afterTime - beforeTime);
+					ret = beforeTemp + (afterTemp - beforeTemp) * (searchTime - beforeTime) / (afterTime - beforeTime);
 				}
 			}
 		} catch (UnsupportedEncodingException e) {

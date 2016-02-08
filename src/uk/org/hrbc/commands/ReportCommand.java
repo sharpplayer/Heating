@@ -62,7 +62,7 @@ public class ReportCommand extends CommandImpl {
 						xml.append("<data>");
 						xml.append(system.getTimeXML(time, "polltime"));
 					}
-					xml.append(getValidXML(rs.getString(2)));
+					xml.append(getValidXML(rs.getString(2), false));
 				}
 				if (closeRec) {
 					xml.append("</data>");

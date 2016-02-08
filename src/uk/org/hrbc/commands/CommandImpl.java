@@ -140,7 +140,12 @@ public abstract class CommandImpl implements Command {
 
 	}
 
-	public String getValidXML(String xml) {
+	public String getValidXML(String xml, boolean escapeChars) {
+		if (escapeChars) {
+			xml = xml.replaceAll("&", "&amp;");
+			xml = xml.replaceAll("<", "&lt;");
+			xml = xml.replaceAll(">", "&gt;");
+		}
 		return xml.replaceAll("^\\u0009\\u000a\\u000d\\u0020-\\uD7FF\\uE000-\\uFFFD]", "");
 	}
 
