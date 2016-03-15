@@ -31,11 +31,9 @@ public class TemperatureCommand extends BasicAreaCommand {
 		Hashtable<String, String> conds = super.getConditions(system);
 		int[] temps = { 5, 10, 15, 18, 20, 21, 22, 23, 24, 25 };
 		for (int temp : temps)
-			conds.put("Temperature is less than " + temp + " degrees",
-					"number(/*/temperature/value) &lt; " + temp);
+			conds.put("Temperature is less than " + temp + " degrees", "number(/*/temperature/value) &lt; " + temp);
 		for (int temp : temps)
-			conds.put("Temperature is greater than " + temp + " degrees",
-					"number(/*/temperature/value) &gt; " + temp);
+			conds.put("Temperature is greater than " + temp + " degrees", "number(/*/temperature/value) &gt; " + temp);
 		return conds;
 	}
 
@@ -46,28 +44,27 @@ public class TemperatureCommand extends BasicAreaCommand {
 
 	@Override
 	public CommandResponse execute(HeatingSystem system) {
-		return super.executeGet(system, CMD_INSIDE_TEMP, CMD_OUTSIDE_TEMP,
-				false);
+		return super.executeGet(system, CMD_INSIDE_TEMP, CMD_OUTSIDE_TEMP, false);
 	}
 
 	@Override
-	protected String getXMLResponse(HeatingSystem system, String zone,
-			String obj, String command) throws IOException,
-			CommsTimeoutException, CommsResendException {
+	protected String getXMLResponse(HeatingSystem system, String zone, String obj, String command)
+			throws IOException, CommsTimeoutException, CommsResendException {
 		String ret = super.getXMLResponse(system, zone, obj, command);
-		if (command.equals(CMD_OUTSIDE_TEMP)) {
-			double temp = 0;
-			// Dirty way to get value, but easier than XPath
-			int ind = ret.indexOf("<value>");
-			if (ind != -1) {
-				int endInd = ret.indexOf("</value>");
-				try {
-					temp = Double.parseDouble(ret.substring(ind + 7, endInd));
-					system.setParam(HeatingSystem.PARAM_OUTSIDE_TEMP,
-							Double.toString(temp));
-				} catch (Exception e) {
-					// Do nothing if problems
+		double temp = 0;
+		// Dirty way to get value, but easier than XPath
+		int ind = ret.indexOf("<value>");
+		if (ind != -1) {
+			int endInd = ret.indexOf("</value>");
+			try {
+				temp = Double.parseDouble(ret.substring(ind + 7, endInd));
+				if (command.equals(CMD_OUTSIDE_TEMP)) {
+					system.setParam(HeatingSystem.PARAM_OUTSIDE_TEMP, Double.toString(temp));
+				} else {
+					system.setParam(HeatingSystem.PARAM_INSIDE_TEMP + zone.toUpperCase(), Double.toString(temp));
 				}
+			} catch (Exception e) {
+				// Do nothing if problems
 			}
 		}
 		return ret;

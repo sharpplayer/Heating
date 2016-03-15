@@ -63,6 +63,7 @@ import uk.org.hrbc.commands.PollCommand;
 import uk.org.hrbc.commands.PollsCommand;
 import uk.org.hrbc.commands.ReportCommand;
 import uk.org.hrbc.commands.RequiredTemperatureCommand;
+import uk.org.hrbc.commands.SetPointNotOccupiedCommand;
 import uk.org.hrbc.commands.SystemCommand;
 import uk.org.hrbc.commands.TemperatureCommand;
 import uk.org.hrbc.commands.TimeCommand;
@@ -118,6 +119,7 @@ public class HeatingSystem {
 	public final static String PARAM_ZIMBRA2 = "ZIMBRA2";
 	public final static String PARAM_ACTIVE_DATASET = "ADATASET";
 	public final static String PARAM_OUTSIDE_TEMP = "OUTTEMP";
+	public final static String PARAM_INSIDE_TEMP = "INTEMP";
 	public final static String PARAM_TEMPTOL = "TEMPTOL";
 	public final static String PARAM_AGGREGATED_DATASET = "AGGDATASET";
 
@@ -141,6 +143,8 @@ public class HeatingSystem {
 
 	public final static int ACCESS_ADMIN = 1;
 	public final static int ACCESS_NORMAL = 2;
+
+	private final static long ONE_HOUR = 60 * 60 * 1000;
 
 	private final static int MAX_RESPONSE_SIZE = 32768;
 
@@ -557,6 +561,7 @@ public class HeatingSystem {
 			classes.add(PollsCommand.class.getCanonicalName());
 			classes.add(ReportCommand.class.getCanonicalName());
 			classes.add(RequiredTemperatureCommand.class.getCanonicalName());
+			classes.add(SetPointNotOccupiedCommand.class.getCanonicalName());
 			classes.add(SystemCommand.class.getCanonicalName());
 			classes.add(TemperatureCommand.class.getCanonicalName());
 			classes.add(TimeCommand.class.getCanonicalName());
@@ -701,6 +706,10 @@ public class HeatingSystem {
 					"Zimbra 2nd URL", true);
 			registerParam(query, PARAM_ACTIVE_DATASET, "1", false, "Active Dataset Number", true);
 			registerParam(query, PARAM_OUTSIDE_TEMP, "0", false, "Current Outside Temp", false);
+			for (String zone : getZonesMap().keySet()) {
+				registerParam(query, PARAM_INSIDE_TEMP + zone.toUpperCase(), "0", false,
+						"Current Inside Temp for zone " + zone, false);
+			}
 			registerParam(query, PARAM_TEMPTOL, "0.5", false, "Tolerance below required temperature to trigger error",
 					true);
 			registerParam(query, PARAM_AGGREGATED_DATASET, "100000001", false, "Data set number for aggregated data",
@@ -797,6 +806,10 @@ public class HeatingSystem {
 			alerts = query.executeQuery(
 					"SELECT AlertId, XPath, AlertCommandGroupId, InXML, LastExec, RecoverGroupId, RecoverInXML, RecoverDelay, RecoverPoll FROM tblalert INNER JOIN tblconditiongroupx ON tblalert.ConditionGroupId=tblconditiongroupx.ConditionGroupId INNER JOIN tblcondition ON tblconditiongroupx.ConditionId=tblcondition.ConditionId WHERE GroupId="
 							+ groupId + " AND Source=" + source + " ORDER BY AlertId");
+			long recoverDelay = 0;
+			String recoverArgs = "";
+			int recoverCommand = 0;
+			int recoverPoll = 0;
 			while (alerts.next()) {
 				try {
 					if (alertId != alerts.getInt(1)) {
@@ -804,13 +817,18 @@ public class HeatingSystem {
 							pendCommand(query, alertCommand, SOURCE_ALERT, alertArgs, false);
 						}
 						if (alertId != -1) {
-							updateAlert(query, alertId, raiseAlert, System.currentTimeMillis(), alerts.getInt(8),
+							updateAlert(query, alertId, raiseAlert, System.currentTimeMillis(), alerts.getLong(8),
 									alerts.getInt(6), alerts.getString(7), alerts.getInt(9));
 						}
 						alertId = alerts.getInt(1);
 						raiseAlert = true;
 						alertCommand = alerts.getInt(3);
 						alertArgs = alerts.getString(4);
+						recoverCommand = alerts.getInt(6);
+						recoverArgs = alerts.getString(7);
+						recoverPoll = alerts.getInt(9);
+						recoverDelay = alerts.getLong(8);
+
 					}
 					if (raiseAlert) {
 						if (alerts.getLong(5) + Long.parseLong(getParam(PARAM_REALERT)) <= System.currentTimeMillis()) {
@@ -843,8 +861,8 @@ public class HeatingSystem {
 				raiseAlert = false;
 			}
 			if (alertId != -1) {
-				updateAlert(query, alertId, raiseAlert, System.currentTimeMillis(), alerts.getInt(8), alerts.getInt(6),
-						alerts.getString(7), alerts.getInt(9));
+				updateAlert(query, alertId, raiseAlert, System.currentTimeMillis(), recoverDelay, recoverCommand,
+						recoverArgs, recoverPoll);
 			}
 		}
 		query.executeUpdate("UPDATE tblpending SET Completed=" + toComplete + " WHERE PendingId=" + pending);
@@ -876,10 +894,10 @@ public class HeatingSystem {
 						Statement.RETURN_GENERATED_KEYS);
 				recoverUpdate += "0,RecoverPoll=" + query.getGeneratedKeys().getInt(1);
 			}
-			query.executeQuery(
+			query.executeUpdate(
 					"UPDATE tblalert SET LastExec=" + lastExec + recoverUpdate + " WHERE AlertId=" + alertId);
 		} else if (recoverPoll != 0) {
-			query.executeQuery("UPDATE tblpoll SET Active=0 WHERE PollId=" + recoverPoll);
+			query.executeUpdate("UPDATE tblpoll SET Active=0 WHERE PollId=" + recoverPoll);
 		}
 	}
 
@@ -908,6 +926,30 @@ public class HeatingSystem {
 		if (con.length() == 0)
 			con = zone;
 		return con;
+	}
+
+	public double[] getZoneParams(String zone, int state) {
+		Document zonesList;
+		try {
+			zonesList = getXMLFactory().newDocumentBuilder()
+					.parse(new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes("UTF-8")));
+			String path = "warm";
+			if (state == LogLeadTimeCommand.STATE_COOLING) {
+				path = "cool";
+			}
+			NodeList list = (NodeList) getXPath().evaluate(
+					"/zones/zone[name='" + zone + "']/tempFormula/" + path + "/*", zonesList, XPathConstants.NODESET);
+			double[] values = new double[5];
+			System.out.print(list.getLength());
+			for (int node = 0; node < list.getLength(); node++) {
+				String nodeItem = list.item(node).getTextContent();
+				values[node] = Double.parseDouble(nodeItem);
+			}
+			return values;
+
+		} catch (SAXException | IOException | ParserConfigurationException | XPathExpressionException e) {
+			return new double[5];
+		}
 	}
 
 	public String getZoneFromAlias(String alias) {
@@ -1084,49 +1126,67 @@ public class HeatingSystem {
 	}
 
 	public double getNextTemp(String zone, double inside, double outside, boolean heating, long interval) {
-		int intInside = (int) (inside * 10);
-		int intOutside = (int) (outside * 10);
+		int intInside = (int) (Math.floor(inside) * 10);
+		int intOutside = (int) (Math.floor(outside) * 10);
 		int state = LogLeadTimeCommand.STATE_COOLING;
 		if (heating) {
 			state = LogLeadTimeCommand.STATE_WARMING;
 		}
 		String ds = getParam(PARAM_ACTIVE_DATASET);
-		String sql = "SELECT * FROM tblleadtimes WHERE DataGroupId=" + ds + " AND zone='" + zone + "' AND State="
-				+ state + " AND InsideTemp=" + intInside + " AND OutsideTemp=" + intOutside;
 		double ret = 0.0;
-		try {
-			ResultSet rs = executeQuery(sql);
-			int total = 0;
-			int count = 0;
-			while (rs.next()) {
-				total += rs.getInt(6) * rs.getInt(7);
-				count += rs.getInt(7);
+		String how;
+		if (ds.equalsIgnoreCase("expression")) {
+			String sql = "SELECT * FROM tblleadtimes WHERE DataGroupId=" + ds + " AND zone='" + zone + "' AND State="
+					+ state + " AND InsideTemp=" + intInside + " AND OutsideTemp=" + intOutside;
+			try {
+				ResultSet rs = executeQuery(sql);
+				int total = 0;
+				int count = 0;
+				while (rs.next()) {
+					total += rs.getInt(6) * rs.getInt(7);
+					count += rs.getInt(7);
+				}
+				if (count > 0) {
+					ret = (double) total / (double) count / 10.0;
+				}
+			} catch (SQLException e) {
+				e.printStackTrace();
 			}
-			if (count > 0) {
-				ret = (double) total / (double) count / 10.0;
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
+			how = "Retrieving from DB";
+		} else {
+			double[] expressionParams = getZoneParams(zone, state);
+			ret = expressionParams[0] * Math.exp(inside * expressionParams[1])
+					+ expressionParams[2] * Math.exp(outside * expressionParams[3]) + expressionParams[4];
+			how = "Calculating";
 		}
+		ret = inside + (heating ? -ret : ret) * interval / (double) ONE_HOUR;
+		System.out.println(how + " next temp: in:" + inside + " out:" + outside + (heating ? " WARMING" : " COOLING"));
 
-		return inside + ret;
+		return ret;
 	}
 
 	public double getTempToReach(String zone, double targetInside, double outside, boolean heating, long interval) {
 
+		System.out.println("**********************");
+		System.out.println("Trying to reach:" + targetInside);
 		double ret = -1000;
 		double retT = -1000;
 		// See which next temperature is nearest the targetTemperature
-		for (double t = targetInside - 3; t < targetInside + 3; t += 0.1) {
-			double t2 = getNextTemp(zone, t, outside, heating, interval);
-			if (Math.abs(retT - targetInside) > Math.abs(t2 - targetInside)) {
-				ret = t;
-				retT = t2;
-			}
+		// for (double t = targetInside - 3; t < targetInside + 3; t += 0.1) {
+		double t2 = getNextTemp(zone, targetInside, outside, heating, interval);
+		System.out.println("Retrieved:" + targetInside + "," + outside + " as " + t2);
+		if (Math.abs(retT - targetInside) > Math.abs(t2 - targetInside)) {
+			ret = t2;
+			retT = t2;
+			System.out.println("Chosen as potential target (closest to target):" + t2);
 		}
+		// }
 		if (ret == -1000) {
+			System.out.println("Found nothing close!");
 			ret = targetInside;
 		}
+		System.out.println("Calculated as:" + ret);
+		System.out.println("**********************");
 		return ret;
 	}
 

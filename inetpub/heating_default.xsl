@@ -1835,8 +1835,9 @@
 							<input type="text" id="rval1" name="rval1" />
 							<input type="button" onclick="javascript:return addAnyArg('rarg','rval',1)"
 								id="_bprarg1" value="+" />
-							<input type="button" onClick="javascript:return removeAnyArg('rarg','rval',1)"
-								id="_bmrarg1" value="-" />
+							<input type="button"
+								onClick="javascript:return removeAnyArg('rarg','rval',1)" id="_bmrarg1"
+								value="-" />
 						</div>
 					</xsl:otherwise>
 				</xsl:choose>
@@ -1954,6 +1955,37 @@
 		<p>
 			<xsl:value-of select="value" />
 		</p>
+	</xsl:template>
+
+	<xsl:template match="spno[@mode='default']">
+		<h2>Set Point Not Occupied (Frost) Temperature</h2>
+		<xsl:call-template name="zones">
+			<xsl:with-param name="selection" select="zone" />
+			<xsl:with-param name="list" select="'Zone'" />
+		</xsl:call-template>
+		<p>
+			<xsl:value-of select="value" />
+		</p>
+	</xsl:template>
+
+	<xsl:template match="spno[@mode='edit']">
+		<h2>Set Point Not Occupied (Frost) Temperature</h2>
+		<xsl:call-template name="zones">
+			<xsl:with-param name="selection" select="zone" />
+			<xsl:with-param name="list" select="'Zone'" />
+		</xsl:call-template>
+		<form method="post">
+			<input name="zone" type="hidden" id="zone">
+				<xsl:attribute name="value"><xsl:value-of select="zone" />
+				</xsl:attribute>
+			</input>
+			<xsl:text>Temperature:</xsl:text>
+			<input name="spno" id="spno" type="text">
+				<xsl:attribute name="value"><xsl:value-of select="value" />
+				</xsl:attribute>
+			</input>
+			<input type="submit" value="Update" />
+		</form>
 	</xsl:template>
 
 	<xsl:template match="aggregates[@mode='default']">

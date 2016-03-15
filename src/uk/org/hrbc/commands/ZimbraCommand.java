@@ -1,5 +1,6 @@
 package uk.org.hrbc.commands;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -145,7 +146,11 @@ public class ZimbraCommand extends CommandImpl {
 			if (prev != null) {
 				inside = sys.getNextTemp(zone, prev.inside, prev.outside, prev.heatingOn, INTERVAL);
 			} else {
-				inside = 15; // From system
+				try {
+					inside = Double.parseDouble(sys.getParam(HeatingSystem.PARAM_INSIDE_TEMP + zone.toUpperCase()));
+				} catch (NumberFormatException ex) {
+					inside = 15;
+				}
 			}
 			target = required;
 			if (occupied) {
@@ -163,23 +168,40 @@ public class ZimbraCommand extends CommandImpl {
 		public boolean calculate(HeatingSystem sys, String zone) {
 			if (!Double.isNaN(target)) {
 				if (inside < target) {
+					System.out.println("------------");
+					System.out.println("Zone:" + zone + ","
+							+ new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date(getTimeMillis()))
+							+ " Current inside:" + inside + " target:" + target);
 					if (prev != null && !prev.heatingOn && !prev.occupied) {
 						prev.heatingOn = true;
 						long hash = (int) (prev.outside * 100) * 10000 + (int) (target * 100);
 						if (temps.containsKey(hash)) {
 							prev.target = temps.get(hash);
 						} else {
+							System.out.println("Getting new target from set from:" + target + " outside:" + prev.outside
+									+ " Warming:" + prev.heatingOn);
 							prev.target = sys.getTempToReach(zone, target, prev.outside, prev.heatingOn, INTERVAL);
 							temps.put(hash, prev.target);
 						}
+						System.out.println("New target in previous 10 mins:" + prev.target);
+						System.out.println("------------");
 						return prev.calculate(sys, zone);
 					} else {
+						System.out.println("Zone occupied or heating on.");
+						System.out.println("------------");
 						return false;
 					}
 				} else {
+					System.out.println("Zone:" + zone + ","
+							+ new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date(getTimeMillis()))
+							+ " Temperature reached");
+					System.out.println("------------");
 					return true;
 				}
 			} else {
+				System.out.println("------------");
+				System.out.println("Zone " + zone + " is cosy and warm");
+				System.out.println("------------");
 				return false;
 			}
 		}
@@ -260,29 +282,56 @@ public class ZimbraCommand extends CommandImpl {
 
 				// Process ics files for getting events
 				for (String paramUrl : paramsUrl) {
+					System.out.println("--------------------------------------1");
 					url = system.getParam(paramUrl);
+					System.out.println("--------------------------------------2");
 					if (!url.isEmpty()) {
+						System.out.println("--------------------------------------3");
 						if (!url.startsWith("file://")) {
+							System.out.println("--------------------------------------4");
 							if (url.contains("?")) {
 								url += "&";
 							} else {
 								url += "?";
 							}
-							url += "fmt=ics&start=0dat&end=p7day";
+							System.out.println("--------------------------------------5");
+							url += "fmt=ics&start=0day&end=p7day";
+							System.out.println("--------------------------------------6");
 
 							uc = new URL(url).openConnection();
+							System.out.println("--------------------------------------7");
 
 							String userPassword = username + ":" + password;
 							String encoding = new BASE64Encoder().encode(userPassword.getBytes());
-							uc.setRequestProperty("Authorisation", "Basic " + encoding);
+							System.out.println("--------------------------------------8");
+							uc.setRequestProperty("Authorization", "Basic " + encoding);
+							System.out.println("--------------------------------------9");
 						} else {
 							uc = new URL(url).openConnection();
 						}
+						System.out.println("--------------------------------------10");
 						uc.connect();
+						System.out.println("--------------------------------------11");
 						conn = uc.getInputStream();
+						System.out.println("--------------------------------------12");
 
-						byte[] data = new byte[conn.available()];
+						ByteArrayOutputStream baos = new ByteArrayOutputStream();
+						byte[] chunk = new byte[4096];
+						int byteCount;
+
+						while ((byteCount = conn.read(chunk)) > 0) {
+							baos.write(chunk, 0, byteCount);
+						}
+
+						byte[] data = baos.toByteArray();
+						System.out.println("--------------------------------------13");
 						conn.read(data);
+
+						System.out.println("--------------------------------------");
+						System.out.println(url);
+						System.out.println("Data: length:" + data.length + " bytes");
+						System.out.println(new String(data));
+						System.out.println("--------------------------------------");
 
 						StringReader sr = new StringReader(new String(data));
 						net.fortuna.ical4j.model.Calendar calendar = builder.build(sr);
@@ -338,24 +387,21 @@ public class ZimbraCommand extends CommandImpl {
 						ret += "<zone>" + zone + "</zone>";
 						System.out.println("Processing zone :" + zone);
 
-						// Sort the meetings in order...
-						for (Vector<Required> req : reqs.values()) {
-							Collections.sort(req, new Comparator<Required>() {
-								@Override
-								public int compare(Required o1, Required o2) {
-									return (int) (o1.time - o2.time);
-								}
-							});
-							for (Required r : req) {
-								System.out.println(r);
-							}
-						}
-
 						// Go through the zones, and sort try and reach the
 						// required
 						// temperature
 						Vector<Required> requireds = reqs.get(zone);
 						if (requireds != null) {
+							Collections.sort(requireds, new Comparator<Required>() {
+								@Override
+								public int compare(Required o1, Required o2) {
+									return (int) (o1.time - o2.time);
+								}
+							});
+							for (Required r : requireds) {
+								System.out.println(r);
+							}
+
 							Heating current = new Heating();
 							Heating first = current;
 							current.initialise(system, requireds, now.getTimeInMillis(), 0, null, zone);
@@ -514,7 +560,7 @@ public class ZimbraCommand extends CommandImpl {
 						ret += "<error>Cannot reach temperature in zone " + zone + "</error>";
 					}
 					for (String loc : locs) {
-						ret += "<error>Unknown location " + getValidXML(loc, true) + "</error>";
+						ret += "<error>Unknown location " + getValidXML(loc, true).replace("'", "") + "</error>";
 					}
 					ret += "</errors>";
 				}

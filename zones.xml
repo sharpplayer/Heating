@@ -6,6 +6,23 @@
 		<type>Zone</type>
 		<locations>Sanctuary.*</locations>
 		<defaultTemp>20</defaultTemp>
+		<tempFormula>
+			<!-- a * exp(b * x) + c * exp(d * y) + e -->
+			<warm>
+				<a>-0.21752</a>
+				<b>-0.14884</b>
+				<c>4.415791</c>
+				<d>-0.07061</d>
+				<e>-0.89648</e>
+			</warm>
+			<cool>
+				<a>0</a>
+				<b>0</b>
+				<c>0</c>
+				<d>0</d>
+				<e>-1</e>
+			</cool>
+		</tempFormula>
 	</zone>
 	<zone>
 		<name>z2</name>
@@ -14,6 +31,23 @@
 		<type>Zone</type>
 		<locations>Hall</locations>
 		<defaultTemp>20</defaultTemp>
+		<tempFormula>
+			<!-- a * exp(b * x) + c * exp(d * y) + e -->
+			<warm>
+				<a>-0.21752</a>
+				<b>-0.14884</b>
+				<c>4.415791</c>
+				<d>-0.07061</d>
+				<e>-0.89648</e>
+			</warm>
+			<cool>
+				<a>0</a>
+				<b>0</b>
+				<c>0</c>
+				<d>0</d>
+				<e>-1</e>
+			</cool>
+		</tempFormula>
 	</zone>
 	<zone>
 		<name>h1</name>
