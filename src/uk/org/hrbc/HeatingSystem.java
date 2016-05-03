@@ -1125,7 +1125,8 @@ public class HeatingSystem {
 		return xpath;
 	}
 
-	public double getNextTemp(String zone, double inside, double outside, boolean heating, long interval) {
+	public double getNextTemp(String zone, double inside, double outside, boolean heating, long interval,
+			boolean substractDelta) {
 		int intInside = (int) (Math.floor(inside) * 10);
 		int intOutside = (int) (Math.floor(outside) * 10);
 		int state = LogLeadTimeCommand.STATE_COOLING;
@@ -1135,7 +1136,7 @@ public class HeatingSystem {
 		String ds = getParam(PARAM_ACTIVE_DATASET);
 		double ret = 0.0;
 		String how;
-		if (ds.equalsIgnoreCase("expression")) {
+		if (!ds.equalsIgnoreCase("expression")) {
 			String sql = "SELECT * FROM tblleadtimes WHERE DataGroupId=" + ds + " AND zone='" + zone + "' AND State="
 					+ state + " AND InsideTemp=" + intInside + " AND OutsideTemp=" + intOutside;
 			try {
@@ -1155,12 +1156,20 @@ public class HeatingSystem {
 			how = "Retrieving from DB";
 		} else {
 			double[] expressionParams = getZoneParams(zone, state);
-			ret = expressionParams[0] * Math.exp(inside * expressionParams[1])
-					+ expressionParams[2] * Math.exp(outside * expressionParams[3]) + expressionParams[4];
+			ret = expressionParams[0] * Math.exp(outside * expressionParams[1])
+					+ expressionParams[2] * Math.exp(inside * expressionParams[3]) + expressionParams[4];
+			System.out.println(expressionParams[0] + "*exp(" + outside + "*" + expressionParams[1] + ")+"
+					+ expressionParams[2] + "*exp(" + inside + "*" + expressionParams[3] + ")+" + expressionParams[4]);
 			how = "Calculating";
 		}
-		ret = inside + (heating ? -ret : ret) * interval / (double) ONE_HOUR;
-		System.out.println(how + " next temp: in:" + inside + " out:" + outside + (heating ? " WARMING" : " COOLING"));
+		if (substractDelta) {
+			System.out.println("Reversing delta");
+			ret *= -1;
+		}
+		double newRet = inside + ret * interval / (double) ONE_HOUR;
+		System.out.println(how + " next temp: in:" + inside + " out:" + outside + (heating ? " WARMING" : " COOLING")
+				+ " delta:" + ret + " calc:" + newRet);
+		ret = newRet;
 
 		return ret;
 	}
@@ -1173,7 +1182,7 @@ public class HeatingSystem {
 		double retT = -1000;
 		// See which next temperature is nearest the targetTemperature
 		// for (double t = targetInside - 3; t < targetInside + 3; t += 0.1) {
-		double t2 = getNextTemp(zone, targetInside, outside, heating, interval);
+		double t2 = getNextTemp(zone, targetInside, outside, heating, interval, true);
 		System.out.println("Retrieved:" + targetInside + "," + outside + " as " + t2);
 		if (Math.abs(retT - targetInside) > Math.abs(t2 - targetInside)) {
 			ret = t2;
@@ -1243,23 +1252,52 @@ public class HeatingSystem {
 						}
 					}
 				}
+				System.out.println("Before time:" + beforeTime);
+				System.out.println("After time:" + afterTime);
+				System.out.println("Search time:" + searchTime);
+				System.out.println("Before temp:" + beforeTemp);
+				System.out.println("After temp:" + afterTemp);
 				if (beforeTime == -1) {
 					ret = afterTemp;
 				} else if (afterTime == -1) {
 					ret = beforeTemp;
+				} else if (Math.abs(afterTime - beforeTime) < 0.001) {
+					ret = afterTemp;
 				} else {
 					ret = beforeTemp + (afterTemp - beforeTemp) * (searchTime - beforeTime) / (afterTime - beforeTime);
 				}
+				System.out.println("Ret:" + (afterTemp - beforeTemp) + "," + (searchTime - beforeTime) + ","
+						+ (afterTime - beforeTime) + "," + ret);
 			}
-		} catch (UnsupportedEncodingException e) {
+		} catch (
+
+		UnsupportedEncodingException e)
+
+		{
 			e.printStackTrace();
-		} catch (SAXException e) {
+		} catch (
+
+		SAXException e)
+
+		{
 			e.printStackTrace();
-		} catch (IOException e) {
+		} catch (
+
+		IOException e)
+
+		{
 			e.printStackTrace();
-		} catch (ParserConfigurationException e) {
+		} catch (
+
+		ParserConfigurationException e)
+
+		{
 			e.printStackTrace();
-		} catch (XPathExpressionException e) {
+		} catch (
+
+		XPathExpressionException e)
+
+		{
 			e.printStackTrace();
 		}
 

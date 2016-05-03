@@ -144,7 +144,7 @@ public class ZimbraCommand extends CommandImpl {
 				outside = sys.getTempForecast(now + timeOffset);
 			}
 			if (prev != null) {
-				inside = sys.getNextTemp(zone, prev.inside, prev.outside, prev.heatingOn, INTERVAL);
+				inside = sys.getNextTemp(zone, prev.inside, prev.outside, prev.heatingOn, INTERVAL, false);
 			} else {
 				try {
 					inside = Double.parseDouble(sys.getParam(HeatingSystem.PARAM_INSIDE_TEMP + zone.toUpperCase()));
@@ -226,6 +226,10 @@ public class ZimbraCommand extends CommandImpl {
 				day = 7;
 			}
 			return day;
+		}
+
+		boolean isHeatingOn() {
+			return heatingOn || occupied;
 		}
 	}
 
@@ -448,7 +452,7 @@ public class ZimbraCommand extends CommandImpl {
 									day++;
 									id = 0;
 								}
-								if (start.heatingOn && !heating) {
+								if (start.isHeatingOn() && !heating) {
 									heating = true;
 									boolean add = true;
 									if (id == 4) {
@@ -481,7 +485,7 @@ public class ZimbraCommand extends CommandImpl {
 									if (add) {
 										occs.put("occin" + day + id, start.getTime());
 									}
-								} else if (heating && !start.heatingOn) {
+								} else if (heating && !start.isHeatingOn()) {
 									heating = false;
 									occs.put("occout" + day + id, start.getTime());
 									id++;
