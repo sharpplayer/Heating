@@ -22,6 +22,7 @@
 				<d>0</d>
 				<e>-1</e>
 			</cool>
+			<min>10</min>
 		</tempFormula>
 	</zone>
 	<zone>
@@ -47,6 +48,7 @@
 				<d>0</d>
 				<e>-1</e>
 			</cool>
+			<min>10</min>
 		</tempFormula>
 	</zone>
 	<zone>

@@ -928,6 +928,18 @@ public class HeatingSystem {
 		return con;
 	}
 
+	public double getMinTemperature(String zone) {
+		try {
+			Document zonesList = getXMLFactory().newDocumentBuilder()
+					.parse(new ByteArrayInputStream(getParam(PARAM_ZONES).getBytes("UTF-8")));
+			double min = Double.parseDouble((String) getXPath()
+					.evaluate("/zones/zone[name='" + zone + "']/tempFormula/min", zonesList, XPathConstants.STRING));
+			return min;
+		} catch (SAXException | IOException | ParserConfigurationException | XPathExpressionException e) {
+			return 10;
+		}
+	}
+
 	public double[] getZoneParams(String zone, int state) {
 		Document zonesList;
 		try {
@@ -1126,7 +1138,7 @@ public class HeatingSystem {
 	}
 
 	public double getNextTemp(String zone, double inside, double outside, boolean heating, long interval,
-			boolean substractDelta) {
+			boolean substractDelta, double minTemp) {
 		int intInside = (int) (Math.floor(inside) * 10);
 		int intOutside = (int) (Math.floor(outside) * 10);
 		int state = LogLeadTimeCommand.STATE_COOLING;
@@ -1169,7 +1181,7 @@ public class HeatingSystem {
 		double newRet = inside + ret * interval / (double) ONE_HOUR;
 		System.out.println(how + " next temp: in:" + inside + " out:" + outside + (heating ? " WARMING" : " COOLING")
 				+ " delta:" + ret + " calc:" + newRet);
-		ret = newRet;
+		ret = Math.max(newRet, minTemp);
 
 		return ret;
 	}
@@ -1182,7 +1194,7 @@ public class HeatingSystem {
 		double retT = -1000;
 		// See which next temperature is nearest the targetTemperature
 		// for (double t = targetInside - 3; t < targetInside + 3; t += 0.1) {
-		double t2 = getNextTemp(zone, targetInside, outside, heating, interval, true);
+		double t2 = getNextTemp(zone, targetInside, outside, heating, interval, true, getMinTemperature(zone));
 		System.out.println("Retrieved:" + targetInside + "," + outside + " as " + t2);
 		if (Math.abs(retT - targetInside) > Math.abs(t2 - targetInside)) {
 			ret = t2;

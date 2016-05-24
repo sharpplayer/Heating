@@ -144,7 +144,12 @@ public class ZimbraCommand extends CommandImpl {
 				outside = sys.getTempForecast(now + timeOffset);
 			}
 			if (prev != null) {
-				inside = sys.getNextTemp(zone, prev.inside, prev.outside, prev.heatingOn, INTERVAL, false);
+				if (prev.occupied) {
+					inside = prev.inside;
+				} else {
+					inside = sys.getNextTemp(zone, prev.inside, prev.outside, prev.heatingOn, INTERVAL, false,
+							sys.getMinTemperature(zone));
+				}
 			} else {
 				try {
 					inside = Double.parseDouble(sys.getParam(HeatingSystem.PARAM_INSIDE_TEMP + zone.toUpperCase()));
@@ -185,6 +190,7 @@ public class ZimbraCommand extends CommandImpl {
 						}
 						System.out.println("New target in previous 10 mins:" + prev.target);
 						System.out.println("------------");
+						inside = target;
 						return prev.calculate(sys, zone);
 					} else {
 						System.out.println("Zone occupied or heating on.");
