@@ -68,6 +68,7 @@ import uk.org.hrbc.commands.SystemCommand;
 import uk.org.hrbc.commands.TemperatureCommand;
 import uk.org.hrbc.commands.TimeCommand;
 import uk.org.hrbc.commands.ValveCommand;
+import uk.org.hrbc.commands.ZimbraAnalysisCommand;
 import uk.org.hrbc.commands.ZimbraCommand;
 import uk.org.hrbc.commands.responses.ClassErrorResponse;
 import uk.org.hrbc.commands.responses.CommandResponse;
@@ -110,6 +111,7 @@ public class HeatingSystem {
 	public final static String PARAM_HOUSEKEEPING_DATA = "HKDATA";
 	public final static String PARAM_DEBUG_CMD = "CMDDEBUG";
 	public final static String PARAM_REPORTS_CMD = "REPORTS";
+	public final static String PARAM_REQUIRED_CMD = "REQUIRED";
 	public final static String PARAM_RETRIES = "RETRIES";
 	public final static String PARAM_LOGGINGOFFSET = "LOGGINGOFFSET";
 	public final static String PARAM_LOGGINGINTERVAL = "LOGGINGINTERVAL";
@@ -122,6 +124,7 @@ public class HeatingSystem {
 	public final static String PARAM_INSIDE_TEMP = "INTEMP";
 	public final static String PARAM_TEMPTOL = "TEMPTOL";
 	public final static String PARAM_AGGREGATED_DATASET = "AGGDATASET";
+	public final static String PARAM_OCCUPANCY_MARGIN = "MARGIN";
 
 	public final static String MODE_DEFAULT = "default";
 	public final static String MODE_EDIT = "edit";
@@ -566,6 +569,7 @@ public class HeatingSystem {
 			classes.add(TemperatureCommand.class.getCanonicalName());
 			classes.add(TimeCommand.class.getCanonicalName());
 			classes.add(ValveCommand.class.getCanonicalName());
+			classes.add(ZimbraAnalysisCommand.class.getCanonicalName());
 			classes.add(ZimbraCommand.class.getCanonicalName());
 
 			ResultSet rs;
@@ -642,6 +646,9 @@ public class HeatingSystem {
 						else if ((cmd instanceof ReportCommand))
 							registerParam(query3, PARAM_REPORTS_CMD, Integer.toString(grpId), true, "Report command",
 									false);
+						else if ((cmd instanceof RequiredTemperatureCommand) && (mode.equalsIgnoreCase(MODE_EDIT)))
+							registerParam(query3, PARAM_REQUIRED_CMD, Integer.toString(grpId), true,
+									"Set required command", false);
 					}
 				}
 				Hashtable<String, String> conds = cmd.getConditions(this);
@@ -702,6 +709,8 @@ public class HeatingSystem {
 			registerParam(query, PARAM_WEATHER, "<weather />", false, "Abridged weather data", false);
 			registerParam(query, PARAM_ZIMBRA, "http://zimbra/home/church/calendar?auth=ba&fmt=ics", false,
 					"Zimbra URL", true);
+			registerParam(query, PARAM_OCCUPANCY_MARGIN, "1800000", false,
+					"Margin around events for considered occupancy (milliseconds)", true);
 			registerParam(query, PARAM_ZIMBRA2, "http://zimbra/home/office/calendar?auth=ba&fmt=ics", false,
 					"Zimbra 2nd URL", true);
 			registerParam(query, PARAM_ACTIVE_DATASET, "1", false, "Active Dataset Number", true);
@@ -1065,7 +1074,7 @@ public class HeatingSystem {
 
 	private void writeMessage(Statement query2, String msg, int status, int pend, int cmd, String argXML,
 			Date createTime, Date execTime, int src, String mode, boolean data, boolean update, String from)
-					throws SQLException {
+			throws SQLException {
 		int index = 0;
 		int len = msg.length();
 		int error;

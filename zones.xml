@@ -71,5 +71,6 @@
 		<name>z3</name>
 		<description>Hall Vents</description>
 		<type>Vents</type>
+		<timeDriven>true</timeDriven>
 	</zone>
 </zones>

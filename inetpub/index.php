@@ -158,11 +158,12 @@
           else
           {
             $sXML = substr($sXML, 0, $nIndex) . " mode=\"" . $sMode . "\" val=\"$nIndex-$nIndexEnd\"" . substr($sXML, $nIndex);
-          }
+          }          
           $sMessage .= $sXML;
           $sXML = "";
-        } else if($oCompleted->GetSuccess() == 5)
+        } else if($oCompleted->GetSuccess() == 5) {
           $sXML .= $oCompleted->GetOutXML();
+        }
         else {
           $bError = true;
           $sXML .= $oCompleted->GetOutXML();
@@ -222,7 +223,6 @@
   {
     header("Content-Type:text/xml");
     echo($sMessage);
-
   }
 
 ?>

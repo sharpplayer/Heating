@@ -247,6 +247,132 @@
 	</xsl:template>
 
 
+	<xsl:template match="zanalysis">
+		<h2>Zimbra Report</h2>
+		<form method="post">
+			<xsl:call-template name="zones">
+				<xsl:with-param name="selection" select="zone" />
+				<xsl:with-param name="list" select="'Zone'" />
+				<xsl:with-param name="occ" select="'true'" />
+			</xsl:call-template>
+
+			<label>
+				Start:
+			</label>
+			<select name="fromday">
+				<option value="">(Day)</option>
+				<xsl:call-template name="simpleloop">
+					<xsl:with-param name="val">
+						1
+					</xsl:with-param>
+					<xsl:with-param name="limit">
+						31
+					</xsl:with-param>
+					<xsl:with-param name="selection">
+						<xsl:value-of select="interval/start/day" />
+					</xsl:with-param>
+				</xsl:call-template>
+			</select>
+			<select name="frommonth">
+				<option value="">(Month)</option>
+				<xsl:call-template name="simpleloop">
+					<xsl:with-param name="val">
+						1
+					</xsl:with-param>
+					<xsl:with-param name="limit">
+						12
+					</xsl:with-param>
+					<xsl:with-param name="selection">
+						<xsl:value-of select="interval/start/month" />
+					</xsl:with-param>
+				</xsl:call-template>
+			</select>
+			<select name="fromyear">
+				<option value="">(Year)</option>
+				<xsl:call-template name="simpleloop">
+					<xsl:with-param name="val">
+						2010
+					</xsl:with-param>
+					<xsl:with-param name="limit">
+						2020
+					</xsl:with-param>
+					<xsl:with-param name="selection">
+						<xsl:value-of select="interval/start/year" />
+					</xsl:with-param>
+				</xsl:call-template>
+			</select>
+			<br />
+			<input type="submit" value="Retrieve" />
+		</form>
+		<xsl:for-each select="zimbra">
+			<xsl:for-each select="occupancy">
+				<table>
+					<tr>
+						<td>Time</td>
+						<xsl:for-each select="plan/s">
+							<td>
+								<xsl:value-of select="d" />
+							</td>
+						</xsl:for-each>
+					</tr>
+					<tr>
+						<td>Predicted Out</td>
+						<xsl:for-each select="plan/s">
+							<td>
+								<xsl:value-of select="o" />
+							</td>
+						</xsl:for-each>
+					</tr>
+					<tr>
+						<td>Actual Out</td>
+						<xsl:for-each select="plan/s">
+							<td>
+								<xsl:variable name="t" select="t" />
+								<xsl:variable name="out"
+									select="/heating/zanalysis/oss/os[t &lt; $t][last()]/v" />
+								<xsl:choose>
+									<xsl:when test="$out">
+										<xsl:value-of select="$out" />
+									</xsl:when>
+									<xsl:otherwise>
+										-
+									</xsl:otherwise>
+								</xsl:choose>
+							</td>
+						</xsl:for-each>
+					</tr>
+					<tr>
+						<td>In</td>
+						<xsl:for-each select="plan/s">
+							<td>
+								<xsl:value-of select="i" />
+							</td>
+						</xsl:for-each>
+					</tr>
+					<tr>
+						<td>Target</td>
+						<xsl:for-each select="plan/s">
+							<td>
+								<xsl:value-of select="r" />
+							</td>
+						</xsl:for-each>
+					</tr>
+					<tr>
+						<td>Heat</td>
+						<xsl:for-each select="plan/s">
+							<td>
+								<xsl:value-of select="h" />
+							</td>
+						</xsl:for-each>
+					</tr>
+				</table>
+				<br />
+			</xsl:for-each>
+		</xsl:for-each>
+
+	</xsl:template>
+
+
 	<xsl:template match="report">
 		<h2>Report</h2>
 		<form method="post">
@@ -938,6 +1064,48 @@
 				<xsl:value-of select="/heating/zones/zone[name = $zone]/description" />
 			</h3>
 			<xsl:call-template name="occstable" />
+			<table>
+				<tr>
+					<td>Time</td>
+					<xsl:for-each select="plan/s">
+						<td>
+							<xsl:value-of select="d" />
+						</td>
+					</xsl:for-each>
+				</tr>
+				<tr>
+					<td>Out</td>
+					<xsl:for-each select="plan/s">
+						<td>
+							<xsl:value-of select="o" />
+						</td>
+					</xsl:for-each>
+				</tr>
+				<tr>
+					<td>In</td>
+					<xsl:for-each select="plan/s">
+						<td>
+							<xsl:value-of select="i" />
+						</td>
+					</xsl:for-each>
+				</tr>
+				<tr>
+					<td>Target</td>
+					<xsl:for-each select="plan/s">
+						<td>
+							<xsl:value-of select="r" />
+						</td>
+					</xsl:for-each>
+				</tr>
+				<tr>
+					<td>Heat</td>
+					<xsl:for-each select="plan/s">
+						<td>
+							<xsl:value-of select="h" />
+						</td>
+					</xsl:for-each>
+				</tr>
+			</table>
 		</xsl:for-each>
 	</xsl:template>
 
