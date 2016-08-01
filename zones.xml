@@ -1,7 +1,7 @@
 <zones>
 	<zone>
 		<name>z1</name>
-		<controller>h2</controller>
+		<controller>h1</controller>
 		<description>Sanctuary</description>
 		<type>Zone</type>
 		<locations>Sanctuary.*</locations>

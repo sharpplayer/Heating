@@ -302,6 +302,52 @@
 				</xsl:call-template>
 			</select>
 			<br />
+			<label>
+				End:
+			</label>
+			<select name="today">
+				<option value="">(Day)</option>
+				<xsl:call-template name="simpleloop">
+					<xsl:with-param name="val">
+						1
+					</xsl:with-param>
+					<xsl:with-param name="limit">
+						31
+					</xsl:with-param>
+					<xsl:with-param name="selection">
+						<xsl:value-of select="interval/start/day" />
+					</xsl:with-param>
+				</xsl:call-template>
+			</select>
+			<select name="tomonth">
+				<option value="">(Month)</option>
+				<xsl:call-template name="simpleloop">
+					<xsl:with-param name="val">
+						1
+					</xsl:with-param>
+					<xsl:with-param name="limit">
+						12
+					</xsl:with-param>
+					<xsl:with-param name="selection">
+						<xsl:value-of select="interval/start/month" />
+					</xsl:with-param>
+				</xsl:call-template>
+			</select>
+			<select name="toyear">
+				<option value="">(Year)</option>
+				<xsl:call-template name="simpleloop">
+					<xsl:with-param name="val">
+						2010
+					</xsl:with-param>
+					<xsl:with-param name="limit">
+						2020
+					</xsl:with-param>
+					<xsl:with-param name="selection">
+						<xsl:value-of select="interval/start/year" />
+					</xsl:with-param>
+				</xsl:call-template>
+			</select>
+			<br />
 			<input type="submit" value="Retrieve" />
 		</form>
 		<xsl:for-each select="zimbra">

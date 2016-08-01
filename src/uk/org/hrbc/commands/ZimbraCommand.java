@@ -611,9 +611,6 @@ public class ZimbraCommand extends CommandImpl {
 																new Date(commandTime + POLL_SET_TEMPERATURE))
 														+ "',1,'" + requiredArgs + "'," + HeatingSystem.SOURCE_COMMAND
 														+ ")");
-
-										pend = system.pendCommand(RequiredTemperatureCommand.class,
-												HeatingSystem.MODE_EDIT, requiredArgs, true);
 									}
 									lastRequired = r;
 								}

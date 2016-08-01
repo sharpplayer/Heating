@@ -53,10 +53,18 @@ public class ZimbraAnalysisCommand extends CommandImpl {
 		try {
 			if (getArgument("fromday") != null) {
 				Date date = getDate(system, "from");
+				Date enddate = null;
+				if (getArgument("today") != null) {
+					enddate = getDate(system, "to");
+				}
 
 				sql = "SELECT InXML, OutXML, Success FROM tblcompleted LEFT JOIN tblcommand ON tblcompleted.CommandId=tblcommand.CommandId WHERE Class='"
 						+ ZimbraCommand.class.getCanonicalName() + "' AND Data=0 AND ExecTimestamp >= '"
-						+ HeatingSystem.SQL_DATE.format(date) + "'" + " ORDER BY ExecTimestamp";
+						+ HeatingSystem.SQL_DATE.format(date) + "'";
+				if (enddate != null) {
+					sql += " AND ExecTimestamp < '" + HeatingSystem.SQL_DATE.format(enddate) + "'";
+				}
+				sql += " ORDER BY ExecTimestamp";
 
 				ResultSet rs = system.executeQuery(sql);
 				String response = "";
@@ -77,18 +85,29 @@ public class ZimbraAnalysisCommand extends CommandImpl {
 
 				sql = "SELECT OutXml, ExecTimestamp FROM tblcompleted LEFT JOIN tblcommand ON tblcompleted.CommandId=tblcommand.CommandId WHERE Class='"
 						+ TemperatureCommand.class.getCanonicalName() + "' AND Data=1 AND ExecTimestamp >= '"
-						+ HeatingSystem.SQL_DATE.format(date) + "' " + " ORDER BY ExecTimestamp";
+						+ HeatingSystem.SQL_DATE.format(date) + "'";
+				if (enddate != null) {
+					sql += " AND ExecTimestamp < '" + HeatingSystem.SQL_DATE.format(enddate) + "'";
+				}
+				sql += " ORDER BY ExecTimestamp";
 				rs = system.executeQuery(sql);
 				ret += "<oss>";
 				while (rs.next()) {
-					ret += "<os>";
-					ret += "<t>";
-					ret += rs.getString(2);
-					ret += "</t>";
-					ret += "<v>";
-					ret += rs.getString(1);
-					ret += "</v>";
-					ret += "</os>";
+					String value = rs.getString(1);
+					String find = system.getController(zone) + "</zone><value>";
+					int index = value.indexOf(find);
+					if (index != -1) {
+						value = value.substring(index + find.length(), value.indexOf("<", index + find.length()));
+						ret += "<os>";
+						ret += "<t>";
+						ret += rs.getDate(2).getTime();
+						ret += "</t>";
+						ret += "<v>";
+						ret += value;
+						System.out.println(rs.getString(2) + ":" + value);
+						ret += "</v>";
+						ret += "</os>";
+					}
 				}
 				ret += "</oss>";
 			}
