@@ -424,6 +424,7 @@ public class ZimbraCommand extends CommandImpl {
 							}
 
 							Heating start = null;
+							Heating planStart = null;
 							current = first;
 							while (current != null) {
 								// Weeks start on Monday in heating system
@@ -431,6 +432,7 @@ public class ZimbraCommand extends CommandImpl {
 									if (current.prev != null) {
 										current.prev.next = null;
 									}
+									planStart = current;
 									start = current;
 									current = current.next;
 								} else if (current.next == null) {
@@ -445,7 +447,6 @@ public class ZimbraCommand extends CommandImpl {
 									tempNotReached.add(zone);
 								}
 							}
-							first = start;
 
 							// Now construct arguments for sending to
 							// heating command
@@ -560,7 +561,7 @@ public class ZimbraCommand extends CommandImpl {
 
 							ret += "<plan>";
 							start = first;
-							while (start != null) {
+							do {
 								ret += "<s>";
 								ret += "<d>" + new SimpleDateFormat().format(new Date(start.now + start.timeOffset))
 										+ "</d>";
@@ -571,7 +572,10 @@ public class ZimbraCommand extends CommandImpl {
 								ret += "<h>" + start.isHeatingOn() + "</h>";
 								ret += "</s>";
 								start = start.next;
-							}
+								if (start == null) {
+									start = planStart;
+								}
+							} while (start != first);
 							ret += "</plan>";
 
 							ret += "</occupancy>";
