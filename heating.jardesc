@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="WINDOWS-1252" standalone="no"?>
 <jardesc>
-    <jar path="C:/Documents and Settings/Raymond/My Documents/My Projects/Java/HRBC/heating.jar"/>
+    <jar path="HRBC/inetpub/heating.jar"/>
     <options buildIfNeeded="true" compress="true" descriptionLocation="/HRBC/heating.jardesc" exportErrors="true" exportWarnings="true" includeDirectoryEntries="true" overwrite="true" saveDescription="true" storeRefactorings="false" useSourceFolders="false"/>
     <storedRefactorings deprecationInfo="true" structuralOnly="false"/>
     <selectedProjects/>

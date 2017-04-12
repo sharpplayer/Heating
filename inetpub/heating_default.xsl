@@ -388,6 +388,24 @@
 						</xsl:for-each>
 					</tr>
 					<tr>
+						<td>Actual In</td>
+						<xsl:for-each select="plan/s">
+							<td>
+								<xsl:variable name="t" select="t" />
+								<xsl:variable name="in"
+									select="/heating/zanalysis/iss/is[t &lt; $t][last()]/v" />
+								<xsl:choose>
+									<xsl:when test="$in">
+										<xsl:value-of select="$in" />
+									</xsl:when>
+									<xsl:otherwise>
+										-
+									</xsl:otherwise>
+								</xsl:choose>
+							</td>
+						</xsl:for-each>
+					</tr>
+					<tr>
 						<td>In</td>
 						<xsl:for-each select="plan/s">
 							<td>

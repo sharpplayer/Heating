@@ -50,6 +50,13 @@ public class ZimbraAnalysisCommand extends CommandImpl {
 		if (zone == null) {
 			zone = system.getParam(HeatingSystem.PARAM_DEFAULTZONE);
 		}
+		String controller = system.getParam(HeatingSystem.PARAM_DEFAULTCONT);
+		for (String cont : system.getZonesMap().keySet()) {
+			if (system.isController(cont)) {
+				controller = cont;
+			}
+		}
+		System.out.println("Controller:" + controller);
 		try {
 			if (getArgument("fromday") != null) {
 				Date date = getDate(system, "from");
@@ -91,25 +98,48 @@ public class ZimbraAnalysisCommand extends CommandImpl {
 				}
 				sql += " ORDER BY ExecTimestamp";
 				rs = system.executeQuery(sql);
+				String iss = "<iss>";
 				ret += "<oss>";
+				System.out.println("GOING IN");
 				while (rs.next()) {
 					String value = rs.getString(1);
-					String find = system.getController(zone) + "</zone><value>";
+					System.out.println(value);
+					String find = controller + "</zone><value>";
 					int index = value.indexOf(find);
 					if (index != -1) {
-						value = value.substring(index + find.length(), value.indexOf("<", index + find.length()));
+						String actValue = value.substring(index + find.length(), value.indexOf("<", index + find.length()));
 						ret += "<os>";
 						ret += "<t>";
-						ret += rs.getDate(2).getTime();
+						ret += rs.getTimestamp(2).getTime();
 						ret += "</t>";
 						ret += "<v>";
-						ret += value;
-						System.out.println(rs.getString(2) + ":" + value);
+						ret += actValue;
+						System.out.println(rs.getString(2) + ":" + actValue + "," + rs.getTimestamp(2).getTime());
 						ret += "</v>";
 						ret += "</os>";
 					}
+					find = zone + "</zone><value>";
+					index = value.indexOf(find);
+					System.out.println("Finding:" + find + ":" + index);
+					if (index != -1) {
+						value = value.substring(index + find.length(), value.indexOf("<", index + find.length()));
+						iss += "<is>";
+						iss += "<t>";
+						iss += rs.getTimestamp(2).getTime();
+						iss += "</t>";
+						iss += "<v>";
+						iss += value;
+						System.out.println(rs.getString(2) + ":" + value + "," + rs.getTimestamp(2).getTime());
+						iss += "</v>";
+						iss += "</is>";
+					}
+					System.out.println(ret);
 				}
 				ret += "</oss>";
+				ret += iss;
+				ret += "</iss>";
+				System.out.println("Finally:");
+				System.out.println(ret);
 			}
 		} catch (SQLException e) {
 			return new SqlErrorResponse(sql, e.getMessage(), getArgumentsXML());
