@@ -56,18 +56,34 @@ public class ZimbraCommand extends CommandImpl {
 		String location;
 		double temp;
 
-		public LocTemp(String loct, double defaultTemp, String zone) {
-			if (loct.contains("_")) {
-				String[] s = loct.split("_");
-				location = s[0];
-				try {
-					temp = Double.parseDouble(s[1]);
-				} catch (NumberFormatException e) {
+		public LocTemp(String loct, double defaultTemp) {
+			temp = Double.NaN;
+			int index = loct.indexOf(")");
+			if (index != -1) {
+				int openIndex = loct.indexOf("(");
+				if (openIndex + 1 < index) {
+					location = loct.substring(0, openIndex).trim();
+					try {
+						temp = Double.parseDouble(loct.substring(openIndex + 1, index));
+					} catch (NumberFormatException e) {
+						temp = defaultTemp;
+					}
+				}
+			}
+
+			if (Double.isNaN(temp)) {
+				if (loct.contains("_")) {
+					String[] s = loct.split("_");
+					location = s[0];
+					try {
+						temp = Double.parseDouble(s[1]);
+					} catch (NumberFormatException e) {
+						temp = defaultTemp;
+					}
+				} else {
+					location = loct;
 					temp = defaultTemp;
 				}
-			} else {
-				location = loct;
-				temp = defaultTemp;
 			}
 		}
 
@@ -287,6 +303,11 @@ public class ZimbraCommand extends CommandImpl {
 				// Process ics files for getting events
 				for (String paramUrl : paramsUrl) {
 					url = system.getParam(paramUrl);
+					// if (paramUrl.equals(HeatingSystem.PARAM_ZIMBRA)) {
+					// url = "file:///c:/temp/private.ics";
+					// } else {
+					// url = "file:///c:/temp/public.ics";
+					// }
 					if (!url.isEmpty()) {
 						if (!url.startsWith("file://")) {
 							if (url.contains("?")) {
@@ -355,6 +376,9 @@ public class ZimbraCommand extends CommandImpl {
 												durM *= 1000;
 												req.duration = durM;
 												reqs.get(zone).add(req);
+												System.out.println(event.getName() + " desc:" + event.getDescription()
+														+ ", from:" + pd.getStart() + " duration " + dur.toString()
+														+ " loc:" + event.getLocation());
 											}
 										}
 									}
@@ -612,7 +636,7 @@ public class ZimbraCommand extends CommandImpl {
 						ret += "<error>Cannot reach temperature in zone " + zone + "</error>";
 					}
 					for (String loc : locs) {
-						ret += "<error>Unknown location " + getValidXML(loc, true).replace("'", "") + "</error>";
+						ret += "<error>Unknown location \"" + getValidXML(loc, true).replace("'", "") + "\"</error>";
 					}
 					ret += "</errors>";
 				}
@@ -687,7 +711,7 @@ public class ZimbraCommand extends CommandImpl {
 			if (prop instanceof Property) {
 				Property p = (Property) prop;
 				if (p.getValue().matches(locNames)) {
-					return new LocTemp(p.getValue(), defaultTemp, zone);
+					return new LocTemp(p.getValue(), defaultTemp);
 				}
 			}
 		}
@@ -699,7 +723,7 @@ public class ZimbraCommand extends CommandImpl {
 					if (p.getParameter("CUTYPE").getValue().equals("RESOURCE")) {
 						if (p.getParameter("CN") != null) {
 							if (p.getParameter("CN").getValue().matches(locNames)) {
-								return new LocTemp(p.getParameter("CN").getValue(), defaultTemp, zone);
+								return new LocTemp(p.getParameter("CN").getValue(), defaultTemp);
 							}
 						}
 					}
@@ -710,7 +734,7 @@ public class ZimbraCommand extends CommandImpl {
 		Location loc = event.getLocation();
 		// go through properties to see if matches locations
 		if (loc != null && loc.getValue().matches(locNames)) {
-			return new LocTemp(loc.getValue(), defaultTemp, zone);
+			return new LocTemp(loc.getValue(), defaultTemp);
 		}
 
 		return null;
