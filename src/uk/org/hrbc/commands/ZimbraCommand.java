@@ -310,12 +310,14 @@ public class ZimbraCommand extends CommandImpl {
 					// }
 					if (!url.isEmpty()) {
 						if (!url.startsWith("file://")) {
-							if (url.contains("?")) {
-								url += "&";
-							} else {
-								url += "?";
+							if (!url.trim().toLowerCase().endsWith(".ics")) {
+								if (url.contains("?")) {
+									url += "&";
+								} else {
+									url += "?";
+								}
+								url += "fmt=ics&start=0day&end=p7day";
 							}
-							url += "fmt=ics&start=0day&end=p7day";
 
 							uc = new URL(url).openConnection();
 
